@@ -1,0 +1,378 @@
+/* MMM-GlassCalendar.css
+ * Glassy monthly calendar with heatmap, legend, icons
+ */
+
+/* Layout */
+.glass-calendar-wrapper {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: stretch;
+}
+
+.glass-calendar-card {
+  position: relative;
+  width: 100%;
+  max-width: 960px;
+  padding: 18px 20px 20px;
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow:
+    0 18px 45px rgba(0, 0, 0, 0.45),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  background: radial-gradient(circle at top left,
+      rgba(255, 255, 255, 0.18),
+      rgba(15, 23, 42, 0.9));
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  overflow: hidden;
+  color: #f9fafb;
+}
+
+/* Theme variants */
+.glass-calendar-card.glass-theme-dark {
+  background: radial-gradient(circle at top left,
+      rgba(255, 255, 255, 0.16),
+      rgba(15, 23, 42, 0.94));
+  color: #f9fafb;
+}
+
+.glass-calendar-card.glass-theme-light {
+  background: radial-gradient(circle at top left,
+      rgba(255, 255, 255, 0.9),
+      rgba(226, 232, 240, 0.9));
+  color: #0f172a;
+}
+
+/* Shimmer */
+.glass-calendar-card::before {
+  content: "";
+  position: absolute;
+  top: -40%;
+  left: -40%;
+  width: 140%;
+  height: 140%;
+  background: linear-gradient(
+    120deg,
+    rgba(255, 255, 255, 0.22),
+    rgba(255, 255, 255, 0.02)
+  );
+  opacity: 0.25;
+  transform: translateX(-30%);
+  animation: glass-shimmer 16s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes glass-shimmer {
+  0% { transform: translateX(-30%); }
+  50% { transform: translateX(15%); }
+  100% { transform: translateX(-30%); }
+}
+
+/* Header */
+.glass-cal-header {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 6px;
+  z-index: 1;
+}
+
+.glass-cal-title {
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 0.9rem;
+}
+
+.glass-cal-meta {
+  font-size: 0.65rem;
+  opacity: 0.75;
+}
+
+/* Spinner */
+.glass-spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: rgba(255,255,255,0.9);
+  border-radius: 50%;
+  animation: glass-spin 0.7s linear infinite;
+  margin-right: 6px;
+}
+
+@keyframes glass-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Weather row */
+.glass-cal-weather-row {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  font-size: 0.78rem;
+  margin-bottom: 6px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: linear-gradient(
+    135deg,
+    rgba(15, 23, 42, 0.85),
+    rgba(37, 99, 235, 0.8)
+  );
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.weather-icon {
+  margin-right: 6px;
+}
+
+/* Agenda preview */
+.glass-cal-agenda-preview {
+  position: relative;
+  z-index: 1;
+  margin: 4px 0 8px;
+  padding: 5px 8px;
+  border-radius: 18px;
+  background: linear-gradient(
+    135deg,
+    rgba(15, 23, 42, 0.55),
+    rgba(124, 58, 237, 0.55)
+  );
+  max-height: 64px;
+  overflow-y: auto;
+}
+
+.glass-cal-agenda-item {
+  display: flex;
+  align-items: baseline;
+  font-size: 0.72rem;
+  line-height: 1.25;
+  margin-bottom: 2px;
+}
+
+.glass-cal-agenda-item:last-child {
+  margin-bottom: 0;
+}
+
+.agenda-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  margin-right: 4px;
+  flex-shrink: 0;
+  background: #60a5fa;
+}
+
+.agenda-title {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.agenda-time {
+  margin-left: 6px;
+  opacity: 0.75;
+  flex-shrink: 0;
+}
+
+/* Grid layout */
+.glass-cal-grid {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  margin-top: 4px;
+}
+
+.glass-cal-row {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  column-gap: 5px;
+  row-gap: 4px;
+}
+
+.glass-cal-row.glass-cal-dow {
+  margin-bottom: 3px;
+}
+
+.glass-cal-cell {
+  font-size: 0.7rem;
+}
+
+/* Week numbers */
+.glass-cal-weeknum-header,
+.glass-cal-weeknum {
+  font-size: 0.62rem;
+  opacity: 0.6;
+  text-align: right;
+  padding-right: 4px;
+}
+
+/* DOW cells */
+.glass-cal-dow-cell {
+  text-align: center;
+  text-transform: uppercase;
+  opacity: 0.8;
+}
+
+/* Day cells */
+.glass-cal-day {
+  position: relative;
+  padding: 4px 4px 3px;
+  border-radius: 12px;
+  background: radial-gradient(circle at top left,
+  rgba(255, 255, 255, 0.14),
+  rgba(255, 255, 255, 0.06));
+  box-shadow:
+  0 1px 4px rgba(0, 0, 0, 0.45),
+  inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+  display: flex;
+  flex-direction: column;
+  min-height: 42px;
+  overflow: hidden;
+}
+
+/* Heatmap overlay */
+.glass-cal-heatmap-overlay {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at bottom right,
+      rgba(56, 189, 248, 0.8),
+      rgba(59, 130, 246, 0.0));
+  pointer-events: none;
+}
+
+/* Day number */
+.glass-cal-daynum {
+  font-size: 0.75rem;
+  font-weight: 600;
+  margin-bottom: 2px;
+  position: relative;
+  z-index: 1;
+}
+
+/* Today */
+.glass-cal-day.today {
+  box-shadow:
+    0 0 0 1px rgba(125, 211, 252, 0.9),
+    0 12px 28px rgba(8, 47, 73, 0.8);
+}
+
+/* Past/other month */
+.glass-cal-day.past-day {
+  opacity: 0.55;
+}
+
+.glass-cal-day.other-month {
+  opacity: 0.35;
+}
+
+/* Events */
+.glass-cal-events {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  overflow: hidden;
+}
+
+.glass-cal-event-item {
+  display: flex;
+  align-items: center;
+  font-size: 0.64rem;
+  line-height: 1.25;
+  margin-bottom: 1px;
+}
+
+.glass-cal-event-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  margin-right: 4px;
+  flex-shrink: 0;
+  background: #38bdf8;
+}
+
+.glass-cal-event-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Full day block */
+.glass-full-day {
+  display: flex;
+  align-items: center;
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 1px 4px;
+  border-radius: 6px;
+}
+
+/* More indicator */
+.glass-cal-event-more {
+  margin-top: 1px;
+  font-size: 0.62rem;
+  opacity: 0.8;
+}
+
+/* Legend */
+.glass-cal-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+  font-size: 0.7rem;
+  opacity: 0.85;
+}
+
+.glass-cal-legend-item {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.glass-cal-legend-item.hidden-calendar {
+  opacity: 0.4;
+}
+
+.glass-cal-legend-color {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  margin-right: 5px;
+}
+
+/* Icons */
+.glass-event-icon {
+  margin-right: 4px;
+  font-size: 0.9em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+iconify-icon.glass-event-icon {
+  font-size: 1rem;
+}
+
+/* Marquee */
+.glass-marquee {
+  position: relative;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.glass-marquee span {
+  display: inline-block;
+  padding-left: 100%;
+  animation: glass-marquee-scroll 10s linear infinite;
+}
+
+@keyframes glass-marquee-scroll {
+  0% { transform: translateX(0%); }
+  100% { transform: translateX(-100%); }
+}

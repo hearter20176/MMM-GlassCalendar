@@ -1,0 +1,14 @@
+{
+  "name": "MMM-GlassCalendar",
+  "version": "3.0.0",
+  "description": "Glass-style monthly calendar with ICS, heatmap, icons, legend, weather, and autoSun theme.",
+  "main": "MMM-GlassCalendar.js",
+  "dependencies": {
+    "@iconify/json": "^2.2.408",
+    "@iconify/utils": "^3.0.2",
+    "fontawesome-free": "^1.0.4",
+    "iconoir": "^7.11.0",
+    "node-fetch": "^3.3.2",
+    "node-ical": "^0.22.1"
+  }
+}

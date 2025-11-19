@@ -1,0 +1,1 @@
+Place the local iconify distribution files (CSS/JS/fonts) here.

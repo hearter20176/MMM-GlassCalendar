@@ -1,0 +1,1 @@
+Place the local boxicons distribution files (CSS/JS/fonts) here.

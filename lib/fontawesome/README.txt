@@ -1,0 +1,1 @@
+Place the local fontawesome distribution files (CSS/JS/fonts) here.
