@@ -76,10 +76,10 @@ Module.register("MMM-GlassCalendar", {
   // ---------------------------------------------------------------------------
   getScripts() {
     return [
-      // Ensure moment is available (MM v2 still ships it, but add CDN fallback)
-      "https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js",
-      // Iconify runtime (CDN fallback to avoid missing local assets)
-      "https://cdn.jsdelivr.net/npm/iconify-icon@1.0.8/dist/iconify-icon.min.js"
+      // Ensure moment is loaded even if MM core doesn't expose it globally early
+      this.file("node_modules/moment/min/moment-with-locales.min.js"),
+      // Iconify runtime (served locally from node_modules)
+      this.file("node_modules/iconify-icon/dist/iconify-icon.min.js")
     ];
   },
 
@@ -87,7 +87,7 @@ Module.register("MMM-GlassCalendar", {
     return [
       "MMM-GlassCalendar.css",
       // Icon packs
-      "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css",
+      this.file("node_modules/@fortawesome/fontawesome-free/css/all.min.css"),
       this.file("lib/boxicons/boxicons.min.css"),
       this.file("lib/iconoir/iconoir.css")
     ];
@@ -97,6 +97,19 @@ Module.register("MMM-GlassCalendar", {
   // Start
   // ---------------------------------------------------------------------------
   start() {
+    if (typeof moment === "undefined") {
+      if (!this._momentRequested) {
+        this._momentRequested = true;
+        const script = document.createElement("script");
+        script.src = this.file("node_modules/moment/min/moment-with-locales.min.js");
+        script.onload = () => {
+          this.start();
+        };
+        document.body.appendChild(script);
+      }
+      return;
+    }
+
     Log.info(`[${this.name}] starting`);
     this.loaded = false;
     this.monthEvents = [];
@@ -583,11 +596,8 @@ Module.register("MMM-GlassCalendar", {
     const dateKey = date.format("YYYY-MM-DD");
     const bgImage = this.getDayBackgroundForDate(dateKey, eventsForDay);
     if (bgImage) {
-      const value =
-        typeof bgImage === "string" && bgImage.trim().startsWith("url(")
-          ? bgImage
-          : `url('${bgImage}')`;
-      cell.style.setProperty("--day-bg-image", value);
+      const value = this.normalizeImageUrl(bgImage);
+      if (value) cell.style.setProperty("--day-bg-image", `url('${value}')`);
       cell.style.setProperty("--day-bg-opacity", "0.35");
     }
 
@@ -721,6 +731,27 @@ Module.register("MMM-GlassCalendar", {
     }
 
     return null;
+  },
+
+  normalizeImageUrl(input) {
+    if (!input) return null;
+    const val = input.toString().trim();
+    const lower = val.toLowerCase();
+    const isAbs =
+      lower.startsWith("http://") ||
+      lower.startsWith("https://") ||
+      lower.startsWith("//") ||
+      lower.startsWith("data:") ||
+      lower.startsWith("/");
+    if (lower.startsWith("modules/")) {
+      return "/" + val.replace(/^\/+/, "");
+    }
+    if (isAbs) return val;
+    try {
+      return this.file(val);
+    } catch (e) {
+      return val;
+    }
   },
 
   // ---------------------------------------------------------------------------

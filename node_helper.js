@@ -1,7 +1,7 @@
 /* MMM-GlassCalendar node_helper
- * - Fetches ICS / iCal feeds using node-ical
- * - Expands recurring events (RRULE)
- * - Filters to requested month
+ *  - Fetches ICS feeds using node-ical
+ *  - Expands RRULE
+ *  - Filters to current month (with offset)
  */
 
 const NodeHelper = require("node_helper");
@@ -122,8 +122,7 @@ module.exports = NodeHelper.create({
         color: source.color || null,
         colorSource: source.color || null
       });
-    } );
-    
+    });
 
     console.log("[MMM-GlassCalendar] Parsed", events.length, "events from", source.url);
     return events;
