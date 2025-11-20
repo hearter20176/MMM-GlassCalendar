@@ -1,116 +1,113 @@
 /* MMM-GlassCalendar
- * Full-featured monthly glass-style calendar for MagicMirror²
+ * Glass-style monthly calendar for MagicMirror²
  * Features:
- *  - ICS / iCal via node-ical (node_helper)
+ *  - ICS via node-ical (node_helper)
  *  - Full-day events at top, timed events with start–end times
- *  - Mini heatmap background for busy days
+ *  - Mini heatmap for busy days
  *  - Day cell background images
  *  - Keyword-based icons (Font Awesome, Boxicons, Iconoir, Iconify)
  *  - Per-calendar visibility toggles (clickable legend)
- *  - Dark/light theme + autoSun (based on sunrise/sunset or fixed hours)
- *  - Optional weather row (from MMM-AmbientWeather) with icon mapping
- *  - Optional agenda preview (from MMM-MyAgenda)
+ *  - Dark/light theme with autoSun (sunrise/sunset or configured hours)
+ *  - Optional weather row + agenda preview (payloads from other modules)
+ *  - Fuzzy per-day deduplication for similar titles
  */
 
 /* global Module, Log, config, moment */
 
 Module.register("MMM-GlassCalendar", {
   // ---------------------------------------------------------------------------
-  // Default configuration
+  // Defaults
   // ---------------------------------------------------------------------------
   defaults: {
     header: "Monthly Calendar",
     locale: config.locale || "en",
     firstDayOfWeek: 0, // 0 = Sunday, 1 = Monday
 
-    // Data sources
-    useCalendarModule: false, // listens to CALENDAR_EVENTS
-    useMyAgenda: true,        // listens to MYAGENDA_EVENTS
-    useAmbientWeather: true,  // listens to AMBIENT_WEATHER_DATA
-
-    // Direct ICS sources (node_helper)
+    // Sources
+    useCalendarModule: false,
+    useMyAgenda: true,
+    useAmbientWeather: true,
     icalSources: [],
 
-    // Display behavior
-    monthOffset: 0,           // 0 = current, -1 previous, +1 next
+    // Month view
+    monthOffset: 0,
     highlightToday: true,
     dimPastDays: true,
     showWeekNumbers: false,
 
+    // Events per day
     maxEventsPerDay: 3,
     showOverflowIndicator: true,
 
+    // Extras
     showAgendaPreview: true,
     maxAgendaPreviewItems: 4,
     showWeatherRow: true,
 
     // Heatmap
     heatmapEnabled: true,
-    heatmapMaxEvents: 6,      // saturate heat at this many events
+    heatmapMaxEvents: 6,
     heatmapColor: "#38bdf8",
 
-    // Day backgrounds
-    // { "2025-12-25": "url('modules/MMM-GlassCalendar/img/christmas.jpg')" }
+    // Custom per-day backgrounds: { "YYYY-MM-DD": "url('...')" }
     dayBackgrounds: {},
+    // Backgrounds by calendar + keyword: [{ calendar: "Holidays", keyword: "christmas", image: "url('...')" }]
+    dayBackgroundRules: [],
 
-    // Event icons per keyword
-    // "flight": { type: "box", icon: "bx bx-plane-alt" }
+    // Keyword icon mapping
+    // e.g. "birthday": { type: "fa", icon: "fa-solid fa-cake-candles" }
     eventIcons: {},
 
-    // Per-calendar visibility (optional default state)
-    // { "Work": true, "Home": false }
+    // Calendar visibility defaults: { "Family": true, "Work": false }
     calendarVisibility: {},
 
-    // Theming
-    // "dark" | "light" | "auto" (MM default heuristics) | "autoSun"
+    // Theme: "dark" | "light" | "auto" | "autoSun"
     theme: "autoSun",
-    // Used when theme === "autoSun" and weather doesn't provide sunrise/sunset
     sunriseHour: 7,
     sunsetHour: 19,
 
-    // Refresh intervals
-    updateInterval: 15 * 60 * 1000, // 15 minutes
+    // Intervals
+    updateInterval: 15 * 60 * 1000,
     animationSpeed: 400
   },
 
   // ---------------------------------------------------------------------------
-  // Script & style loading
+  // Assets
   // ---------------------------------------------------------------------------
   getScripts() {
     return [
-      "moment.js",
-      "moment-timezone.js",
-      // Local Iconify runtime (user must place in lib/iconify/)
-      this.file("lib/iconify/iconify-icon.min.js")
+      // Ensure moment is available (MM v2 still ships it, but add CDN fallback)
+      "https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js",
+      // Iconify runtime (CDN fallback to avoid missing local assets)
+      "https://cdn.jsdelivr.net/npm/iconify-icon@1.0.8/dist/iconify-icon.min.js"
     ];
   },
 
   getStyles() {
     return [
       "MMM-GlassCalendar.css",
-      // Local icon libraries (user provides files)
-      this.file("lib/fontawesome/css/all.min.css"),
-      this.file("lib/boxicons/css/boxicons.min.css"),
+      // Icon packs
+      "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css",
+      this.file("lib/boxicons/boxicons.min.css"),
       this.file("lib/iconoir/iconoir.css")
     ];
   },
 
   // ---------------------------------------------------------------------------
-  // Startup
+  // Start
   // ---------------------------------------------------------------------------
   start() {
     Log.info(`[${this.name}] starting`);
-
     this.loaded = false;
-    this.monthEvents = [];      // merged event list
-    this.weatherSummary = null; // from MMM-AmbientWeather
-    this.myAgendaPreview = [];  // from MMM-MyAgenda
+    this.monthEvents = [];
+    this.weatherSummary = null;
+    this.myAgendaPreview = [];
     this.lastFetch = null;
-    this.hiddenCalendars = new Set(); // per-calendar toggles
+    this.hiddenCalendars = new Set();
 
     moment.locale(this.config.locale);
 
-    // Initialize hiddenCalendars from config.calendarVisibility (false => hidden)
+    // Set initial hidden calendars from config
     Object.keys(this.config.calendarVisibility || {}).forEach(name => {
       if (this.config.calendarVisibility[name] === false) {
         this.hiddenCalendars.add(name);
@@ -125,20 +122,19 @@ Module.register("MMM-GlassCalendar", {
   },
 
   // ---------------------------------------------------------------------------
-  // Schedule ICS fetch
+  // Fetch ICS
   // ---------------------------------------------------------------------------
   scheduleFetch() {
-    this.monthEvents = []; // reset before new month fetch
     this.sendSocketNotification("GLASSCALENDAR_FETCH", {
       icalSources: this.config.icalSources,
       monthOffset: this.config.monthOffset
-    } );
-    
+    });
+
     setTimeout(() => this.scheduleFetch(), this.config.updateInterval);
   },
-  
+
   // ---------------------------------------------------------------------------
-  // Notifications from other modules
+  // Notifications
   // ---------------------------------------------------------------------------
   notificationReceived(notification, payload, sender) {
     if (notification === "CALENDAR_EVENTS" && this.config.useCalendarModule) {
@@ -167,11 +163,15 @@ Module.register("MMM-GlassCalendar", {
   // ---------------------------------------------------------------------------
   handleCalendarEvents(events) {
     if (!Array.isArray(events)) return;
+    // Replace existing calendar-sourced events before merging new ones
+    this.pruneEventsBySource("calendar");
     this.mergeEvents(events, "calendar");
   },
 
   handleIcalEvents(payload) {
     if (!payload || !Array.isArray(payload.events)) return;
+    // Replace existing ical-sourced events before merging new ones
+    this.pruneEventsBySource("ical");
     this.mergeEvents(payload.events, "ical");
     this.lastFetch = new Date();
   },
@@ -190,41 +190,73 @@ Module.register("MMM-GlassCalendar", {
         color: ev.color || ev.calendarColor || null
       }));
 
+    // Replace existing myagenda-sourced events before merging new ones
+    this.pruneEventsBySource("myagenda");
     this.mergeEvents(events, "myagenda");
   },
 
   handleAmbientWeather(payload) {
-    // Expect roughly:
-    // { temperature, condition, conditionCode, icon, aqi, uv, sunrise, sunset }
     this.weatherSummary = payload || null;
     this.updateDom(this.config.animationSpeed);
   },
 
   // ---------------------------------------------------------------------------
-  // Event normalization / merge
+  // Normalization & merge
   // ---------------------------------------------------------------------------
+  normalizeTitle(raw) {
+    if (!raw) return "";
+    let t = raw
+      .toLowerCase()
+      .normalize("NFKD") // strip diacritics
+      .replace(/[\u2018\u2019\u201A\u201B\u2032\u2035]/g, "'") // curly apostrophes to straight
+      .replace(/[\u201C\u201D\u201E\u201F]/g, '"'); // curly quotes to straight
+
+    // Remove punctuation and symbols
+    t = t.replace(/['"’“”\-–—:,.;!?/\\()[\]{}<>*_~`^|]/g, " ");
+    // Remove possessive 's
+    t = t.replace(/\b(\w+)'s\b/g, "$1");
+    // Remove any remaining non-word characters
+    t = t.replace(/[^\w\s]/g, " ");
+
+    // Stopwords tuned for event titles
+    const stop = [
+      "the","of","for","and","a","an","mr","mrs","ms",
+      "life","celebration","service","memorial","meeting","event"
+    ];
+
+    t = t
+      .split(/\s+/)
+      .filter(w => w && !stop.includes(w))
+      .join(" ");
+
+    // Sort words to ignore order
+    t = t.split(/\s+/).sort().join(" ");
+    return t.trim();
+  },
+
   mergeEvents(events, sourceType) {
     if (!Array.isArray(events)) return;
-  
+
     const monthMoment = moment().add(this.config.monthOffset, "months");
     const monthStart = monthMoment.clone().startOf("month").startOf("day");
     const monthEnd = monthMoment.clone().endOf("month").endOf("day");
-  
+
     const normalized = events
       .map(ev => {
-        const start = ev.startDate || ev.start || ev.date;
-        const end = ev.endDate || ev.end || start;
-        if (!start) return null;
-  
-        const mStart = moment(start);
-        const mEnd = moment(end);
-  
+        const startRaw = ev.startDate || ev.start || ev.date;
+        const endRaw = ev.endDate || ev.end || startRaw;
+        if (!startRaw) return null;
+
+        const mStart = moment(startRaw);
+        const mEnd = moment(endRaw);
         if (!mStart.isValid() || !mEnd.isValid()) return null;
         if (mEnd.isBefore(monthStart) || mStart.isAfter(monthEnd)) return null;
-  
+
+        const title = (ev.title || ev.summary || "").replace(/\s+/g, " ").trim();
+
         return {
-          title: ev.title || ev.summary || "",
-          calendarName: ev.calendarName || ev.calendarName || ev.calendar || "",
+          title,
+          calendarName: ev.calendarName || ev.calendar || "",
           startDate: mStart,
           endDate: mEnd,
           allDay: !!ev.allDay,
@@ -233,41 +265,49 @@ Module.register("MMM-GlassCalendar", {
         };
       })
       .filter(Boolean);
-  
-    // Merge with existing & dedupe across ALL sources
-    this.monthEvents = this.deduplicateEvents(
-      this.monthEvents.concat(normalized)
-    );
-  
+
+    // Append and let day-level dedupe handle cross-source duplicates
+    this.monthEvents = this.monthEvents.concat(normalized);
+    this.pruneDayDuplicates(monthStart, monthEnd);
     this.loaded = true;
     this.updateDom(this.config.animationSpeed);
   },
-  
-  deduplicateEvents(events) {
-    const seen = new Set();
-    const out = [];
-  
-    events.forEach(ev => {
-      const title = (ev.title || "").toLowerCase().trim();
-      const startISO = moment(ev.startDate).toISOString();
-      const endISO = moment(ev.endDate || ev.startDate).toISOString();
-      const key = `${title}|${startISO}|${endISO}`;
-  
-      if (!seen.has(key)) {
-        seen.add(key);
-        out.push({
-          ...ev,
-          startDate: moment(ev.startDate),
-          endDate: moment(ev.endDate || ev.startDate)
-        });
-      }
-    });
-  
-    return out;
+
+  pruneEventsBySource(sourceType) {
+    if (!this.monthEvents || !this.monthEvents.length) return;
+    this.monthEvents = this.monthEvents.filter(ev => ev.source !== sourceType);
   },
-      
+
+  pruneDayDuplicates(monthStart, monthEnd) {
+    if (!this.monthEvents || !this.monthEvents.length) return;
+    const seen = new Set();
+
+    this.monthEvents = this.monthEvents.filter(ev => {
+      const normTitle = this.normalizeTitle(ev.title);
+      if (!normTitle) return true;
+
+      const dayKey = moment.max(ev.startDate.clone().startOf("day"), monthStart).format("YYYY-MM-DD");
+      const startBucket = ev.allDay
+        ? "all"
+        : ev.startDate
+            .clone()
+            .minutes(Math.floor(ev.startDate.minutes() / 15) * 15)
+            .seconds(0)
+            .milliseconds(0)
+            .format("HH:mm");
+      const durationBucket = ev.allDay
+        ? "allday"
+        : Math.round((ev.endDate.diff(ev.startDate, "minutes") || 0) / 15) * 15;
+
+      const key = `${dayKey}|${normTitle}|${startBucket}|${durationBucket}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  },
+
   // ---------------------------------------------------------------------------
-  // Rendering
+  // Rendering root
   // ---------------------------------------------------------------------------
   getDom() {
     const wrapper = document.createElement("div");
@@ -276,8 +316,6 @@ Module.register("MMM-GlassCalendar", {
     const card = document.createElement("div");
     card.className = "glass-calendar-card";
 
-    console.log("[MMM-GlassCalendar] events in month:", this.monthEvents.length);
-
     const themeName =
       this.config.theme === "auto"
         ? this.determineThemeAuto()
@@ -285,7 +323,9 @@ Module.register("MMM-GlassCalendar", {
         ? this.determineThemeSun()
         : this.config.theme;
 
-    card.classList.add("glass-theme-" + (themeName === "light" ? "light" : "dark"));
+    card.classList.add(
+      "glass-theme-" + (themeName === "light" ? "light" : "dark")
+    );
 
     card.appendChild(this.renderHeader());
 
@@ -304,6 +344,9 @@ Module.register("MMM-GlassCalendar", {
     return wrapper;
   },
 
+  // ---------------------------------------------------------------------------
+  // Header / weather / agenda
+  // ---------------------------------------------------------------------------
   renderHeader() {
     const header = document.createElement("div");
     header.className = "glass-cal-header";
@@ -312,9 +355,10 @@ Module.register("MMM-GlassCalendar", {
 
     const titleSpan = document.createElement("span");
     titleSpan.className = "glass-cal-title";
+    const bullet = '<span class="glass-separator" aria-hidden="true">&bull;</span>';
     titleSpan.innerHTML =
       (this.config.header || "") +
-      (this.config.header ? " · " : "") +
+      (this.config.header ? " " + bullet + " " : "") +
       monthMoment.format("MMMM YYYY");
 
     const metaSpan = document.createElement("span");
@@ -343,14 +387,8 @@ Module.register("MMM-GlassCalendar", {
     row.className = "glass-cal-weather-row";
 
     const iconSpan = document.createElement("span");
-    iconSpan.className = "weather-icon";
-
     const iconClass = this.mapWeatherToIcon(this.weatherSummary);
-    if (iconClass) {
-      iconSpan.className = "weather-icon " + iconClass;
-    } else {
-      iconSpan.className = "weather-icon fa-solid fa-cloud";
-    }
+    iconSpan.className = "weather-icon " + (iconClass || "fa-solid fa-cloud");
 
     const textSpan = document.createElement("span");
     textSpan.className = "weather-text";
@@ -361,11 +399,11 @@ Module.register("MMM-GlassCalendar", {
       const aqi = this.weatherSummary.aqi;
       const uv = this.weatherSummary.uv;
       const parts = [];
-      if (typeof t !== "undefined") parts.push(Math.round(t) + "°");
+      if (typeof t !== "undefined") parts.push(Math.round(t) + "&deg;");
       if (cond) parts.push(cond);
       if (typeof aqi !== "undefined") parts.push("AQI " + aqi);
       if (typeof uv !== "undefined") parts.push("UV " + uv);
-      textSpan.innerHTML = parts.join(" · ");
+      textSpan.innerHTML = parts.join(" &bull; ");
     } else {
       textSpan.innerHTML = "Weather unavailable";
     }
@@ -413,6 +451,9 @@ Module.register("MMM-GlassCalendar", {
     return wrap;
   },
 
+  // ---------------------------------------------------------------------------
+  // Legend
+  // ---------------------------------------------------------------------------
   renderLegend() {
     const legend = document.createElement("div");
     legend.className = "glass-cal-legend";
@@ -458,6 +499,9 @@ Module.register("MMM-GlassCalendar", {
     return legend;
   },
 
+  // ---------------------------------------------------------------------------
+  // Month grid
+  // ---------------------------------------------------------------------------
   renderMonthGrid() {
     const grid = document.createElement("div");
     grid.className = "glass-cal-grid";
@@ -521,9 +565,10 @@ Module.register("MMM-GlassCalendar", {
   renderDayCell(date, monthStart, monthEnd) {
     const cell = document.createElement("div");
     cell.className = "glass-cal-cell glass-cal-day";
+    cell.style.setProperty("--day-bg-image", "none");
+    cell.style.setProperty("--day-bg-opacity", "0");
 
     const isOtherMonth = date.month() !== monthStart.month();
-
     const today = moment();
     const isToday = date.isSame(today, "day");
     const isPast = date.isBefore(today, "day");
@@ -532,15 +577,19 @@ Module.register("MMM-GlassCalendar", {
     if (isToday && this.config.highlightToday) cell.classList.add("today");
     if (isPast && this.config.dimPastDays && !isToday) cell.classList.add("past-day");
 
-    const dateKey = date.format("YYYY-MM-DD");
-    if (this.config.dayBackgrounds[dateKey]) {
-      cell.style.backgroundImage = this.config.dayBackgrounds[dateKey];
-      cell.style.backgroundSize = "cover";
-      cell.style.backgroundPosition = "center";
-    }
-
     const eventsForDay = this.getEventsForDay(date);
     const eventCount = eventsForDay.length;
+
+    const dateKey = date.format("YYYY-MM-DD");
+    const bgImage = this.getDayBackgroundForDate(dateKey, eventsForDay);
+    if (bgImage) {
+      const value =
+        typeof bgImage === "string" && bgImage.trim().startsWith("url(")
+          ? bgImage
+          : `url('${bgImage}')`;
+      cell.style.setProperty("--day-bg-image", value);
+      cell.style.setProperty("--day-bg-opacity", "0.35");
+    }
 
     if (this.config.heatmapEnabled && eventCount > 0) {
       const intensity = Math.min(1, eventCount / this.config.heatmapMaxEvents);
@@ -564,25 +613,29 @@ Module.register("MMM-GlassCalendar", {
       return a.startDate - b.startDate;
     });
 
-    const maxShow = this.config.maxEventsPerDay;
-
-    eventsForDay.slice(0, maxShow).forEach(ev => {
+    eventsForDay.forEach(ev => {
       if (ev.allDay) {
         const fullItem = document.createElement("div");
         fullItem.className = "glass-cal-event-item glass-full-day";
-        if (ev.color) {
-          fullItem.style.backgroundColor = ev.color + "66";
-        }
+        if (ev.color) fullItem.style.backgroundColor = ev.color + "66";
 
         const iconEl = this.getEventIcon(ev);
-        if (iconEl) fullItem.appendChild(iconEl);
+        if (iconEl) {
+          const iconColor = ev.color
+            ? this.getContrastColor(ev.color)
+            : null;
+          if (iconColor) iconEl.style.color = iconColor;
+          fullItem.appendChild(iconEl);
+        }
 
         const title = ev.title || "(no title)";
         if (title.length > 14) {
-          fullItem.classList.add("glass-marquee");
+          const marquee = document.createElement("div");
+          marquee.className = "glass-marquee";
           const span = document.createElement("span");
           span.innerHTML = title;
-          fullItem.appendChild(span);
+          marquee.appendChild(span);
+          fullItem.appendChild(marquee);
         } else {
           fullItem.appendChild(document.createTextNode(title));
         }
@@ -594,16 +647,24 @@ Module.register("MMM-GlassCalendar", {
       const evItem = document.createElement("div");
       evItem.className = "glass-cal-event-item";
 
-      const dot = document.createElement("span");
-      dot.className = "glass-cal-event-dot";
-      if (ev.color) dot.style.backgroundColor = ev.color;
-      evItem.appendChild(dot);
-
       const iconEl = this.getEventIcon(ev);
-      if (iconEl) evItem.appendChild(iconEl);
+      if (iconEl) {
+        const baseText = ev.color || null;
+        if (baseText) {
+          const contrasted = this.getContrastColor(baseText);
+          if (contrasted) iconEl.style.color = contrasted;
+        }
+        evItem.appendChild(iconEl);
+      } else {
+        const dot = document.createElement("span");
+        dot.className = "glass-cal-event-dot";
+        if (ev.color) dot.style.backgroundColor = ev.color;
+        evItem.appendChild(dot);
+      }
 
       const label = document.createElement("span");
       label.className = "glass-cal-event-label";
+      if (ev.color) label.style.color = ev.color;
 
       const title = ev.title || "(no title)";
       let timeStr = ev.startDate.format("LT");
@@ -611,7 +672,7 @@ Module.register("MMM-GlassCalendar", {
         timeStr += " – " + ev.endDate.format("LT");
       }
 
-      const fullText = `${timeStr} · ${title}`;
+      const fullText = `${timeStr} &bull; ${title}`;
 
       if (fullText.length > 18) {
         const marquee = document.createElement("div");
@@ -628,91 +689,231 @@ Module.register("MMM-GlassCalendar", {
       eventsWrap.appendChild(evItem);
     });
 
-    if (this.config.showOverflowIndicator && eventsForDay.length > maxShow) {
-      const more = document.createElement("div");
-      more.className = "glass-cal-event-more";
-      more.innerHTML = "+" + (eventsForDay.length - maxShow);
-      eventsWrap.appendChild(more);
-    }
 
     cell.appendChild(eventsWrap);
     return cell;
   },
 
+  getDayBackgroundForDate(dateKey, eventsForDay) {
+    if (this.config.dayBackgrounds && this.config.dayBackgrounds[dateKey]) {
+      return this.config.dayBackgrounds[dateKey];
+    }
+
+    const rules = this.config.dayBackgroundRules || [];
+    if (!rules.length || !eventsForDay || !eventsForDay.length) return null;
+
+    const lowerRules = rules.map(r => ({
+      calendar: r.calendar ? r.calendar.toLowerCase() : null,
+      keyword: r.keyword ? r.keyword.toLowerCase() : null,
+      image: r.image
+    }));
+
+    for (let rule of lowerRules) {
+      if (!rule.image) continue;
+      const match = eventsForDay.some(ev => {
+        const cal = (ev.calendarName || ev.calendar || "").toLowerCase();
+        const title = (ev.title || "").toLowerCase();
+        const calendarOk = rule.calendar ? cal.includes(rule.calendar) : true;
+        const keywordOk = rule.keyword ? title.includes(rule.keyword) : true;
+        return calendarOk && keywordOk;
+      });
+      if (match) return rule.image;
+    }
+
+    return null;
+  },
+
+  // ---------------------------------------------------------------------------
+  // Fuzzy per-day dedupe
+  // ---------------------------------------------------------------------------
   getEventsForDay(date) {
     const start = date.clone().startOf("day");
     const end = date.clone().endOf("day");
-  
-    // 1) Filter events that overlap this day AND respect hidden calendars
+
     const sameDayEvents = this.monthEvents.filter(ev => {
       if (this.hiddenCalendars && this.hiddenCalendars.has(ev.calendarName || "Calendar")) {
         return false;
       }
       return ev.startDate.isBefore(end) && ev.endDate.isAfter(start);
     });
-  
-    if (date.format("YYYY-MM-DD") === "2025-11-22") {
-      console.log("RAW EVENTS for Nov 22 >>>>");
-      sameDayEvents.forEach((ev, i) => {
-        console.log(`#${i+1}`, {
-          title: ev.title,
-          cal: ev.calendarName,
-          allDay: ev.allDay,
-          start: ev.startDate.format(),
-          end: ev.endDate.format()
-        });
-      });
-    }
-    
 
-    // 2) Per-day, per-title deduplication across ALL calendars
     const seen = new Set();
     const result = [];
-  
+
     sameDayEvents.forEach(ev => {
-      const title = (ev.title || "").toLowerCase().trim();
+      const normTitle = this.normalizeTitle(ev.title);
       const dayKey = start.format("YYYY-MM-DD");
-  
-      let key;
-  
-      if (ev.allDay) {
-        // All-day: only care about title + date
-        key = `allday|${title}|${dayKey}`;
-      } else {
-        // Timed: normalize/round times so tiny differences don't break dedupe
-        const roundedStart = ev.startDate
-          .clone()
-          .minutes(Math.floor(ev.startDate.minutes() / 15) * 15)
-          .seconds(0)
-          .milliseconds(0);
-  
-        const durationMinutes = ev.endDate
-          ? ev.endDate.diff(ev.startDate, "minutes")
-          : 0;
-  
-        const durationBucket = Math.round(durationMinutes / 15) * 15;
-  
-        key = `timed|${title}|${dayKey}|${roundedStart.format("HH:mm")}|${durationBucket}`;
-      }
-  
-      if (!seen.has(key)) {
+      const key = `event|${normTitle}|${dayKey}`;
+
+      if (seen.has(key)) return;
+
+      // Fuzzy dedupe: skip if similar title/time already added for this day
+      const isDuplicate = result.some(existing =>
+        this.isDuplicateEventForDay(ev, existing, start)
+      );
+
+      if (!isDuplicate) {
         seen.add(key);
         result.push(ev);
       }
     });
-  
+
     return result;
   },
-  
-  canonicalEventKey(ev) {
-    const name = (ev.calendarName || ev.calendar || "").toLowerCase().trim();
-    const title = (ev.title || "").toLowerCase().trim();
-    return `${name}|${title}|${ev.startDate.toISOString()}|${ev.endDate.toISOString()}`;
+
+  isDuplicateEventForDay(evA, evB, dayStart) {
+    const titleA = this.normalizeTitle(evA.title);
+    const titleB = this.normalizeTitle(evB.title);
+    if (!titleA || !titleB) return false;
+
+    const titleScore = this.titleSimilarity(titleA, titleB);
+    if (titleScore < 0.7) return false;
+
+    // If either is all-day, consider them duplicates when titles are close
+    if (evA.allDay || evB.allDay) return true;
+
+    // Timed: consider duplicates if start times are within 45 minutes
+    const diffMinutes = Math.abs(evA.startDate.diff(evB.startDate, "minutes"));
+    if (diffMinutes > 45) return false;
+
+    // Also align on the same day (should already be true from caller)
+    return evA.startDate.isSame(dayStart, "day") || evB.startDate.isSame(dayStart, "day");
   },
-  
+
+  titleSimilarity(a, b) {
+    const tokensA = a.split(/\s+/).filter(Boolean);
+    const tokensB = b.split(/\s+/).filter(Boolean);
+    if (!tokensA.length || !tokensB.length) return 0;
+
+    const setA = new Set(tokensA);
+    const setB = new Set(tokensB);
+    let intersect = 0;
+    setA.forEach(t => {
+      if (setB.has(t)) intersect += 1;
+    });
+
+    const denom = Math.max(setA.size, setB.size);
+    return denom === 0 ? 0 : intersect / denom;
+  },
+
+  getContrastColor(color, fallback) {
+    const fb = fallback || "#7dd3fc";
+    const parsed = this.parseColor(color);
+    if (!parsed) return fb;
+
+    const { r, g, b } = parsed;
+    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    const { h, s, l } = this.rgbToHsl(r, g, b);
+
+    const targetL = luminance > 0.55 ? 0.25 : 0.82;
+    const clampedS = Math.min(0.9, Math.max(0.35, s));
+    return this.hslToHex(h, clampedS, targetL);
+  },
+
+  parseColor(input) {
+    if (!input) return null;
+    let str = input.toString().trim();
+    if (str.startsWith("#")) {
+      const hex = str.slice(1);
+      if (hex.length === 3) {
+        const r = parseInt(hex[0] + hex[0], 16);
+        const g = parseInt(hex[1] + hex[1], 16);
+        const b = parseInt(hex[2] + hex[2], 16);
+        if ([r, g, b].some(v => Number.isNaN(v))) return null;
+        return { r, g, b };
+      }
+      if (hex.length === 6) {
+        const r = parseInt(hex.slice(0, 2), 16);
+        const g = parseInt(hex.slice(2, 4), 16);
+        const b = parseInt(hex.slice(4, 6), 16);
+        if ([r, g, b].some(v => Number.isNaN(v))) return null;
+        return { r, g, b };
+      }
+      if (hex.length === 8) {
+        const r = parseInt(hex.slice(0, 2), 16);
+        const g = parseInt(hex.slice(2, 4), 16);
+        const b = parseInt(hex.slice(4, 6), 16);
+        if ([r, g, b].some(v => Number.isNaN(v))) return null;
+        return { r, g, b };
+      }
+      return null;
+    }
+    if (str.startsWith("rgb")) {
+      const nums = str
+        .replace(/[rgba()]/g, " ")
+        .split(/[,\\s]+/)
+        .filter(Boolean)
+        .slice(0, 3)
+        .map(n => parseInt(n, 10));
+      if (nums.length === 3 && nums.every(v => !Number.isNaN(v))) {
+        return { r: nums[0], g: nums[1], b: nums[2] };
+      }
+    }
+    return null;
+  },
+
+  rgbToHsl(r, g, b) {
+    r /= 255;
+    g /= 255;
+    b /= 255;
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    let h, s;
+    const l = (max + min) / 2;
+
+    if (max === min) {
+      h = s = 0;
+    } else {
+      const d = max - min;
+      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+      switch (max) {
+        case r:
+          h = (g - b) / d + (g < b ? 6 : 0);
+          break;
+        case g:
+          h = (b - r) / d + 2;
+          break;
+        default:
+          h = (r - g) / d + 4;
+      }
+      h /= 6;
+    }
+    return { h, s, l };
+  },
+
+  hslToHex(h, s, l) {
+    const hue2rgb = (p, q, t) => {
+      if (t < 0) t += 1;
+      if (t > 1) t -= 1;
+      if (t < 1 / 6) return p + (q - p) * 6 * t;
+      if (t < 1 / 2) return q;
+      if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+      return p;
+    };
+
+    let r, g, b;
+    if (s === 0) {
+      r = g = b = l;
+    } else {
+      const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+      const p = 2 * l - q;
+      r = hue2rgb(p, q, h + 1 / 3);
+      g = hue2rgb(p, q, h);
+      b = hue2rgb(p, q, h - 1 / 3);
+    }
+
+    const toHex = x => {
+      const v = Math.round(x * 255)
+        .toString(16)
+        .padStart(2, "0");
+      return v;
+    };
+
+    return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+  },
 
   // ---------------------------------------------------------------------------
-  // Icon mapping
+  // Icon helpers
   // ---------------------------------------------------------------------------
   getEventIcon(ev) {
     const title = (ev.title || "").toLowerCase();
@@ -742,10 +943,17 @@ Module.register("MMM-GlassCalendar", {
     }
 
     if (type === "iconoir") {
-      const el = document.createElement("i");
-      el.className = "iconoir-" + icon;
-      el.classList.add("glass-event-icon");
-      return el;
+      const name = (icon || "").replace(/^iconoir-/, "").replace(/\.svg$/i, "");
+      const img = document.createElement("img");
+      img.src = this.file(`lib/iconoir/${name}.svg`);
+      img.alt = "";
+      img.classList.add("glass-event-icon", "iconoir-img");
+      img.onerror = () => {
+        const fallback = document.createElement("i");
+        fallback.className = `iconoir-${name} glass-event-icon iconoir-css-fallback`;
+        img.replaceWith(fallback);
+      };
+      return img;
     }
 
     if (type === "iconify") {
@@ -763,7 +971,6 @@ Module.register("MMM-GlassCalendar", {
   // ---------------------------------------------------------------------------
   mapWeatherToIcon(summary) {
     if (!summary) return null;
-
     if (summary.icon) return summary.icon;
 
     const code = summary.conditionCode;
@@ -792,7 +999,6 @@ Module.register("MMM-GlassCalendar", {
   // Theme helpers
   // ---------------------------------------------------------------------------
   determineThemeAuto() {
-    // Simple: MagicMirror tends to be dark; keep dark as default
     return "dark";
   },
 
@@ -805,7 +1011,7 @@ Module.register("MMM-GlassCalendar", {
         sunrise = moment(this.weatherSummary.sunrise).hour();
         sunset = moment(this.weatherSummary.sunset).hour();
       } catch (e) {
-        // ignore parse failure, use config values
+        // ignore
       }
     }
 
