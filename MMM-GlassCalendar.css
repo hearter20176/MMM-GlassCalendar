@@ -150,8 +150,8 @@
   display: inline-block;
   width: 12px;
   height: 12px;
-  border: 2px solid #ffffff42;
-  border-top-color: #ffffffe6;
+  border: 2px solid rgba(255, 255, 255, 0.26);
+  border-top-color: rgba(255, 255, 255, 0.9);
   border-radius: 50%;
   animation: glass-spin 0.7s linear infinite;
 }
