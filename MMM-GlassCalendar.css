@@ -188,7 +188,7 @@
 }
 
 .weather-text {
-  color: var(--glass-ink);
+  color: var(--glass-ink, #e9edf5);
   font-weight: 600;
   letter-spacing: 0.01em;
 }
