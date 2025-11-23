@@ -1094,6 +1094,8 @@ Module.register("MMM-GlassCalendar", {
     if (cond.includes("snow")) return "fa-solid fa-snowflake";
     if (cond.includes("fog") || cond.includes("mist"))
       return "fa-solid fa-smog";
+    if (cond.includes("partly") || cond.includes("mostly"))
+      return "fa-solid fa-cloud-sun";
     if (cond.includes("sun") || cond.includes("clear"))
       return "fa-solid fa-sun";
     if (cond.includes("cloud")) return "fa-solid fa-cloud-sun";
