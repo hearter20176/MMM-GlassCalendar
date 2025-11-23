@@ -187,6 +187,12 @@
   color: var(--glass-accent-strong);
 }
 
+.weather-text {
+  color: var(--glass-ink);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
 /* Agenda preview */
 .glass-cal-agenda-preview {
   position: relative;
