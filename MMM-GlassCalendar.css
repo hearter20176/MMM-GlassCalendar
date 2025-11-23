@@ -2,19 +2,31 @@
  * iOS-like liquid glass styling
  */
 
-.glass-calendar-wrapper {
-  width: 100%;
+.MMM-GlassCalendar {
   display: flex;
   justify-content: center;
-  align-items: stretch;
-  padding: 4px;
+  align-items: center;
+  color: #e9edf5;
+  font-family: "SF Pro Display", "SF Pro Text", "Inter", "Segoe UI", -apple-system, system-ui, sans-serif;
+  letter-spacing: 0.01em;
+}
+
+.glass-calendar-wrapper {
+  width: 1060px;
+/*  max-width: 92vw; */
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+/*  padding: 4px; */
+  margin-top: 16px;
+  margin-bottom: 16px;
 }
 
 .glass-calendar-card {
   position: relative;
   width: 100%;
-  max-width: none;
-  padding: 16px 18px 18px;
+  max-width: 1060px;
+  padding: 16px;
   border-radius: 26px;
   border: 1px solid rgba(255, 255, 255, 0.18);
   box-shadow:
@@ -29,6 +41,7 @@
   color: #e9edf5;
   font-family: "SF Pro Display", "SF Pro Text", "Inter", "Segoe UI", -apple-system, system-ui, sans-serif;
   letter-spacing: 0.01em;
+  gap: 0px 8px;
 }
 
 .glass-calendar-card > * {
@@ -48,25 +61,25 @@
 }
 
 .glass-calendar-card.glass-theme-dark {
-  --glass-surface: rgba(15, 23, 42, 0.82);
-  --glass-surface-soft: rgba(255, 255, 255, 0.05);
+  --glass-surface: #0f172ad1;
+  --glass-surface-soft: #ffffff0d;
   --glass-ink: #e9edf5;
-  --glass-muted: rgba(233, 237, 245, 0.7);
+  --glass-muted: #e9edf5b3;
   --glass-accent: #7dd3fc;
   --glass-accent-strong: #38bdf8;
 }
 
 .glass-calendar-card.glass-theme-light {
-  --glass-surface: rgba(244, 247, 252, 0.88);
-  --glass-surface-soft: rgba(255, 255, 255, 0.7);
+  --glass-surface: #f4f7fce0;
+  --glass-surface-soft: #ffffffb3;
   --glass-ink: #0f172a;
-  --glass-muted: rgba(15, 23, 42, 0.6);
+  --glass-muted: #0f172a99;
   --glass-accent: #38bdf8;
   --glass-accent-strong: #0ea5e9;
   color: var(--glass-ink);
   box-shadow:
-    0 16px 46px rgba(15, 23, 42, 0.16),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.16);
+    0 16px 46px #0f172a29,
+    inset 0 0 0 1px #ffffff29;
 }
 
 .glass-calendar-card::after {
@@ -77,8 +90,8 @@
   bottom: -140px;
   right: -80px;
   background:
-    radial-gradient(circle at 25% 30%, rgba(125, 211, 252, 0.65), rgba(14, 165, 233, 0.08)),
-    radial-gradient(circle at 80% 70%, rgba(129, 140, 248, 0.55), rgba(59, 130, 246, 0.1));
+    radial-gradient(circle at 25% 30%, #7dd3fca6, #0ea5e914),
+    radial-gradient(circle at 80% 70%, #818cf88c, #3b82f61a);
   filter: blur(38px);
   opacity: 0.45;
   pointer-events: none;
@@ -131,8 +144,8 @@
   display: inline-block;
   width: 12px;
   height: 12px;
-  border: 2px solid rgba(255, 255, 255, 0.26);
-  border-top-color: rgba(255, 255, 255, 0.9);
+  border: 2px solid #ffffff42;
+  border-top-color: #ffffffe6;
   border-radius: 50%;
   animation: glass-spin 0.7s linear infinite;
 }
@@ -152,10 +165,10 @@
   margin-bottom: 8px;
   padding: 7px 12px;
   border-radius: 999px;
-  background: linear-gradient(135deg, rgba(224, 231, 255, 0.18), rgba(14, 165, 233, 0.22));
+  background: linear-gradient(135deg, #e0e7ff2e, #0ea5e938);
   box-shadow:
-    0 2px 12px rgba(14, 165, 233, 0.15),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+    0 2px 12px #0ea5e926,
+    inset 0 0 0 1px #ffffff24;
   color: var(--glass-ink);
 }
 
@@ -171,10 +184,10 @@
   margin: 4px 0 10px;
   padding: 7px 10px;
   border-radius: 16px;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(59, 130, 246, 0.10));
+  background: linear-gradient(135deg, #ffffff14, #3b82f61a);
   max-height: 70px;
   overflow-y: auto;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 0 0 1px #ffffff14;
 }
 
 .glass-cal-agenda-item {
@@ -197,7 +210,7 @@
   margin-right: 4px;
   flex-shrink: 0;
   background: var(--glass-accent-strong);
-  box-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
+  box-shadow: 0 0 10px #38bdf880;
 }
 
 .agenda-title {
@@ -225,8 +238,8 @@
 .glass-cal-row {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  column-gap: 6px;
-  row-gap: 5px;
+  column-gap: 5px;
+  row-gap: 4px;
 }
 
 .glass-cal-row.glass-cal-dow {
@@ -260,12 +273,12 @@
   --day-bg-image: none;
   --day-bg-opacity: 0;
   position: relative;
-  padding: 6px 6px 4px;
+  padding: 5px 5px 3px;
   border-radius: 14px;
-  background: linear-gradient(160deg, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.02));
+  background: linear-gradient(160deg, #ffffff1a, #ffffff05);
   box-shadow:
-    0 6px 18px rgba(0, 0, 0, 0.22),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+    0 6px 18px #00000038,
+    inset 0 0 0 1px #ffffff0f;
   display: flex;
   flex-direction: column;
   min-height: 42px;
@@ -303,7 +316,7 @@
 .glass-cal-heatmap-overlay {
   position: absolute;
   inset: 0;
-  background: radial-gradient(circle at 80% 90%, rgba(56, 189, 248, 0.58), rgba(56, 189, 248, 0));
+  background: radial-gradient(circle at 80% 90%, #38bdf894, #38bdf800);
   pointer-events: none;
   mix-blend-mode: screen;
 }
@@ -320,9 +333,9 @@
 /* Today */
 .glass-cal-day.today {
   box-shadow:
-    0 0 0 1px rgba(125, 211, 252, 0.9),
-    0 12px 30px rgba(14, 165, 233, 0.35);
-  background: linear-gradient(160deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.06));
+    0 0 0 1px #7dd3fce6,
+    0 12px 30px #0ea5e959;
+  background: linear-gradient(160deg, #ffffff38, #ffffff0f);
 }
 
 /* Past/other month */
@@ -358,7 +371,7 @@
   margin-right: 5px;
   flex-shrink: 0;
   background: var(--glass-accent-strong);
-  box-shadow: 0 0 8px rgba(56, 189, 248, 0.6);
+  box-shadow: 0 0 8px #38bdf899;
 }
 
 .glass-cal-event-label {
@@ -378,8 +391,8 @@
   font-weight: 650;
   padding: 2px 6px;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.12);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  background: #ffffff1f;
+  box-shadow: inset 0 0 0 1px #ffffff14;
   white-space: nowrap;
 }
 
@@ -404,7 +417,7 @@
   margin-top: 10px;
   font-size: 0.72rem;
   color: var(--glass-ink);
-  text-shadow: 0 1px 2px rgba(0,0,0,0.25);
+  text-shadow: 0 1px 2px #00000040;
 }
 
 .glass-cal-legend-item {
@@ -414,16 +427,16 @@
   padding: 6px 10px;
   border-radius: 999px;
   cursor: pointer;
-  background: rgba(255, 255, 255, 0.08);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  background: #ffffff14;
+  box-shadow: inset 0 0 0 1px #ffffff14;
   transition: transform 120ms ease, box-shadow 120ms ease, opacity 120ms ease;
 }
 
 .glass-cal-legend-item:hover {
   transform: translateY(-1px);
   box-shadow:
-    0 6px 12px rgba(0, 0, 0, 0.12),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.10);
+    0 6px 12px #0000001f,
+    inset 0 0 0 1px #ffffff1a;
 }
 
 .glass-cal-legend-item.hidden-calendar {
@@ -434,7 +447,7 @@
   width: 12px;
   height: 12px;
   border-radius: 4px;
-  box-shadow: 0 0 12px rgba(56, 189, 248, 0.5);
+  box-shadow: 0 0 12px #38bdf880;
 }
 
 /* Icons */
@@ -498,6 +511,6 @@ iconify-icon.glass-event-icon {
   }
 
   .glass-cal-day {
-    padding: 6px 5px 4px;
+    padding: 5px 4px 3px;
   }
 }

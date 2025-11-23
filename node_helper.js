@@ -21,8 +21,12 @@ module.exports = NodeHelper.create({
 
   async fetchCalendars(payload) {
     try {
+      const identifier = payload && payload.identifier;
       const icalSources = (payload && payload.icalSources) || [];
-      const monthOffset = (payload && payload.monthOffset) || 0;
+      const rawOffset = payload && payload.monthOffset;
+      const monthOffset = Number.isFinite(Number(rawOffset))
+        ? Number(rawOffset)
+        : 0;
 
       if (!Array.isArray(icalSources) || icalSources.length === 0) return;
 
@@ -41,16 +45,24 @@ module.exports = NodeHelper.create({
         } catch (err) {
           console.error("[MMM-GlassCalendar] ICS fetch error for", source.url, err);
           this.sendSocketNotification("GLASSCALENDAR_ERROR", {
+            identifier,
+            monthOffset,
             url: source.url,
             message: err && err.message ? err.message : String(err)
           });
         }
       }
 
-      this.sendSocketNotification("GLASSCALENDAR_EVENTS", { events: allEvents });
+      this.sendSocketNotification("GLASSCALENDAR_EVENTS", {
+        identifier,
+        monthOffset,
+        events: allEvents
+      });
     } catch (err) {
       console.error("[MMM-GlassCalendar] fetchCalendars fatal error", err);
       this.sendSocketNotification("GLASSCALENDAR_ERROR", {
+        identifier,
+        monthOffset,
         message: err && err.message ? err.message : String(err)
       });
     }

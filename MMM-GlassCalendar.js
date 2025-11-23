@@ -20,7 +20,8 @@ Module.register("MMM-GlassCalendar", {
   // ---------------------------------------------------------------------------
   defaults: {
     header: "Monthly Calendar",
-    locale: config.locale || "en",
+    locale:
+      typeof config !== "undefined" && config.locale ? config.locale : "en",
     firstDayOfWeek: 0, // 0 = Sunday, 1 = Monday
 
     // Sources
@@ -101,7 +102,9 @@ Module.register("MMM-GlassCalendar", {
       if (!this._momentRequested) {
         this._momentRequested = true;
         const script = document.createElement("script");
-        script.src = this.file("node_modules/moment/min/moment-with-locales.min.js");
+        script.src = this.file(
+          "node_modules/moment/min/moment-with-locales.min.js"
+        );
         script.onload = () => {
           this.start();
         };
@@ -121,7 +124,7 @@ Module.register("MMM-GlassCalendar", {
     moment.locale(this.config.locale);
 
     // Set initial hidden calendars from config
-    Object.keys(this.config.calendarVisibility || {}).forEach(name => {
+    Object.keys(this.config.calendarVisibility || {}).forEach((name) => {
       if (this.config.calendarVisibility[name] === false) {
         this.hiddenCalendars.add(name);
       }
@@ -138,9 +141,15 @@ Module.register("MMM-GlassCalendar", {
   // Fetch ICS
   // ---------------------------------------------------------------------------
   scheduleFetch() {
+    const monthOffset =
+      typeof this.config.monthOffset === "number"
+        ? this.config.monthOffset
+        : parseInt(this.config.monthOffset, 10) || 0;
+
     this.sendSocketNotification("GLASSCALENDAR_FETCH", {
+      identifier: this.identifier,
       icalSources: this.config.icalSources,
-      monthOffset: this.config.monthOffset
+      monthOffset
     });
 
     setTimeout(() => this.scheduleFetch(), this.config.updateInterval);
@@ -154,7 +163,10 @@ Module.register("MMM-GlassCalendar", {
       this.handleCalendarEvents(payload || []);
     }
 
-    if (notification === "AMBIENT_WEATHER_DATA" && this.config.useAmbientWeather) {
+    if (
+      notification === "AMBIENT_WEATHER_DATA" &&
+      this.config.useAmbientWeather
+    ) {
       this.handleAmbientWeather(payload);
     }
 
@@ -165,8 +177,31 @@ Module.register("MMM-GlassCalendar", {
 
   socketNotificationReceived(notification, payload) {
     if (notification === "GLASSCALENDAR_EVENTS") {
+      if (
+        payload &&
+        payload.identifier &&
+        payload.identifier !== this.identifier
+      ) {
+        return;
+      }
+      if (
+        payload &&
+        typeof payload.monthOffset !== "undefined"
+      ) {
+        const msgOffset = Number(payload.monthOffset);
+        const cfgOffset =
+          typeof this.config.monthOffset === "number"
+            ? this.config.monthOffset
+            : parseInt(this.config.monthOffset, 10) || 0;
+        if (Number.isFinite(msgOffset) && msgOffset !== cfgOffset) {
+          return;
+        }
+      }
       this.handleIcalEvents(payload);
     } else if (notification === "GLASSCALENDAR_ERROR") {
+      if (payload && payload.identifier && payload.identifier !== this.identifier) {
+        return;
+      }
       Log.error(`[${this.name}] node_helper error`, payload);
     }
   },
@@ -194,7 +229,7 @@ Module.register("MMM-GlassCalendar", {
 
     this.myAgendaPreview = events
       .slice(0, this.config.maxAgendaPreviewItems)
-      .map(ev => ({
+      .map((ev) => ({
         title: ev.title || ev.summary || "",
         calendarName: ev.calendarName || ev.calendar || "",
         startDate: ev.startDate ? moment(ev.startDate) : null,
@@ -233,13 +268,26 @@ Module.register("MMM-GlassCalendar", {
 
     // Stopwords tuned for event titles
     const stop = [
-      "the","of","for","and","a","an","mr","mrs","ms",
-      "life","celebration","service","memorial","meeting","event"
+      "the",
+      "of",
+      "for",
+      "and",
+      "a",
+      "an",
+      "mr",
+      "mrs",
+      "ms",
+      "life",
+      "celebration",
+      "service",
+      "memorial",
+      "meeting",
+      "event"
     ];
 
     t = t
       .split(/\s+/)
-      .filter(w => w && !stop.includes(w))
+      .filter((w) => w && !stop.includes(w))
       .join(" ");
 
     // Sort words to ignore order
@@ -255,7 +303,7 @@ Module.register("MMM-GlassCalendar", {
     const monthEnd = monthMoment.clone().endOf("month").endOf("day");
 
     const normalized = events
-      .map(ev => {
+      .map((ev) => {
         const startRaw = ev.startDate || ev.start || ev.date;
         const endRaw = ev.endDate || ev.end || startRaw;
         if (!startRaw) return null;
@@ -265,7 +313,9 @@ Module.register("MMM-GlassCalendar", {
         if (!mStart.isValid() || !mEnd.isValid()) return null;
         if (mEnd.isBefore(monthStart) || mStart.isAfter(monthEnd)) return null;
 
-        const title = (ev.title || ev.summary || "").replace(/\s+/g, " ").trim();
+        const title = (ev.title || ev.summary || "")
+          .replace(/\s+/g, " ")
+          .trim();
 
         return {
           title,
@@ -288,18 +338,22 @@ Module.register("MMM-GlassCalendar", {
 
   pruneEventsBySource(sourceType) {
     if (!this.monthEvents || !this.monthEvents.length) return;
-    this.monthEvents = this.monthEvents.filter(ev => ev.source !== sourceType);
+    this.monthEvents = this.monthEvents.filter(
+      (ev) => ev.source !== sourceType
+    );
   },
 
   pruneDayDuplicates(monthStart, monthEnd) {
     if (!this.monthEvents || !this.monthEvents.length) return;
     const seen = new Set();
 
-    this.monthEvents = this.monthEvents.filter(ev => {
+    this.monthEvents = this.monthEvents.filter((ev) => {
       const normTitle = this.normalizeTitle(ev.title);
       if (!normTitle) return true;
 
-      const dayKey = moment.max(ev.startDate.clone().startOf("day"), monthStart).format("YYYY-MM-DD");
+      const dayKey = moment
+        .max(ev.startDate.clone().startOf("day"), monthStart)
+        .format("YYYY-MM-DD");
       const startBucket = ev.allDay
         ? "all"
         : ev.startDate
@@ -333,8 +387,8 @@ Module.register("MMM-GlassCalendar", {
       this.config.theme === "auto"
         ? this.determineThemeAuto()
         : this.config.theme === "autoSun"
-        ? this.determineThemeSun()
-        : this.config.theme;
+          ? this.determineThemeSun()
+          : this.config.theme;
 
     card.classList.add(
       "glass-theme-" + (themeName === "light" ? "light" : "dark")
@@ -368,7 +422,8 @@ Module.register("MMM-GlassCalendar", {
 
     const titleSpan = document.createElement("span");
     titleSpan.className = "glass-cal-title";
-    const bullet = '<span class="glass-separator" aria-hidden="true">&bull;</span>';
+    const bullet =
+      '<span class="glass-separator" aria-hidden="true">&bull;</span>';
     titleSpan.innerHTML =
       (this.config.header || "") +
       (this.config.header ? " " + bullet + " " : "") +
@@ -377,7 +432,11 @@ Module.register("MMM-GlassCalendar", {
     const metaSpan = document.createElement("span");
     metaSpan.className = "glass-cal-meta";
 
-    if (!this.loaded && this.config.icalSources && this.config.icalSources.length > 0) {
+    if (
+      !this.loaded &&
+      this.config.icalSources &&
+      this.config.icalSources.length > 0
+    ) {
       const spin = document.createElement("span");
       spin.className = "glass-spinner";
       metaSpan.appendChild(spin);
@@ -430,7 +489,7 @@ Module.register("MMM-GlassCalendar", {
     const wrap = document.createElement("div");
     wrap.className = "glass-cal-agenda-preview";
 
-    this.myAgendaPreview.forEach(ev => {
+    this.myAgendaPreview.forEach((ev) => {
       const item = document.createElement("div");
       item.className = "glass-cal-agenda-item";
 
@@ -473,14 +532,14 @@ Module.register("MMM-GlassCalendar", {
 
     const colors = {};
 
-    this.monthEvents.forEach(ev => {
+    this.monthEvents.forEach((ev) => {
       const name = ev.calendarName || "Calendar";
       if (!colors[name] && ev.color) {
         colors[name] = ev.color;
       }
     });
 
-    Object.keys(colors).forEach(name => {
+    Object.keys(colors).forEach((name) => {
       const item = document.createElement("div");
       item.className = "glass-cal-legend-item";
       if (this.hiddenCalendars.has(name)) {
@@ -524,7 +583,10 @@ Module.register("MMM-GlassCalendar", {
     const monthEnd = monthMoment.clone().endOf("month");
 
     const firstDay = this.config.firstDayOfWeek;
-    const firstGridDay = monthStart.clone().startOf("week").add(firstDay, "days");
+    const firstGridDay = monthStart
+      .clone()
+      .startOf("week")
+      .add(firstDay, "days");
     while (firstGridDay.day() !== firstDay) {
       firstGridDay.subtract(1, "day");
     }
@@ -534,7 +596,11 @@ Module.register("MMM-GlassCalendar", {
 
     const dayNames = [];
     for (let i = 0; i < 7; i++) {
-      dayNames.push(moment().weekday((i + firstDay) % 7).format("dd"));
+      dayNames.push(
+        moment()
+          .weekday((i + firstDay) % 7)
+          .format("dd")
+      );
     }
 
     if (this.config.showWeekNumbers) {
@@ -543,7 +609,7 @@ Module.register("MMM-GlassCalendar", {
       dowRow.appendChild(blank);
     }
 
-    dayNames.forEach(name => {
+    dayNames.forEach((name) => {
       const cell = document.createElement("div");
       cell.className = "glass-cal-cell glass-cal-dow-cell";
       cell.innerHTML = name;
@@ -565,7 +631,9 @@ Module.register("MMM-GlassCalendar", {
       }
 
       for (let day = 0; day < 7; day++) {
-        row.appendChild(this.renderDayCell(current.clone(), monthStart, monthEnd));
+        row.appendChild(
+          this.renderDayCell(current.clone(), monthStart, monthEnd)
+        );
         current.add(1, "day");
       }
 
@@ -588,7 +656,8 @@ Module.register("MMM-GlassCalendar", {
 
     if (isOtherMonth) cell.classList.add("other-month");
     if (isToday && this.config.highlightToday) cell.classList.add("today");
-    if (isPast && this.config.dimPastDays && !isToday) cell.classList.add("past-day");
+    if (isPast && this.config.dimPastDays && !isToday)
+      cell.classList.add("past-day");
 
     const eventsForDay = this.getEventsForDay(date);
     const eventCount = eventsForDay.length;
@@ -623,7 +692,7 @@ Module.register("MMM-GlassCalendar", {
       return a.startDate - b.startDate;
     });
 
-    eventsForDay.forEach(ev => {
+    eventsForDay.forEach((ev) => {
       if (ev.allDay) {
         const fullItem = document.createElement("div");
         fullItem.className = "glass-cal-event-item glass-full-day";
@@ -631,9 +700,7 @@ Module.register("MMM-GlassCalendar", {
 
         const iconEl = this.getEventIcon(ev);
         if (iconEl) {
-          const iconColor = ev.color
-            ? this.getContrastColor(ev.color)
-            : null;
+          const iconColor = ev.color ? this.getContrastColor(ev.color) : null;
           if (iconColor) iconEl.style.color = iconColor;
           fullItem.appendChild(iconEl);
         }
@@ -699,7 +766,6 @@ Module.register("MMM-GlassCalendar", {
       eventsWrap.appendChild(evItem);
     });
 
-
     cell.appendChild(eventsWrap);
     return cell;
   },
@@ -712,7 +778,7 @@ Module.register("MMM-GlassCalendar", {
     const rules = this.config.dayBackgroundRules || [];
     if (!rules.length || !eventsForDay || !eventsForDay.length) return null;
 
-    const lowerRules = rules.map(r => ({
+    const lowerRules = rules.map((r) => ({
       calendar: r.calendar ? r.calendar.toLowerCase() : null,
       keyword: r.keyword ? r.keyword.toLowerCase() : null,
       image: r.image
@@ -720,7 +786,7 @@ Module.register("MMM-GlassCalendar", {
 
     for (let rule of lowerRules) {
       if (!rule.image) continue;
-      const match = eventsForDay.some(ev => {
+      const match = eventsForDay.some((ev) => {
         const cal = (ev.calendarName || ev.calendar || "").toLowerCase();
         const title = (ev.title || "").toLowerCase();
         const calendarOk = rule.calendar ? cal.includes(rule.calendar) : true;
@@ -761,8 +827,11 @@ Module.register("MMM-GlassCalendar", {
     const start = date.clone().startOf("day");
     const end = date.clone().endOf("day");
 
-    const sameDayEvents = this.monthEvents.filter(ev => {
-      if (this.hiddenCalendars && this.hiddenCalendars.has(ev.calendarName || "Calendar")) {
+    const sameDayEvents = this.monthEvents.filter((ev) => {
+      if (
+        this.hiddenCalendars &&
+        this.hiddenCalendars.has(ev.calendarName || "Calendar")
+      ) {
         return false;
       }
       return ev.startDate.isBefore(end) && ev.endDate.isAfter(start);
@@ -771,7 +840,7 @@ Module.register("MMM-GlassCalendar", {
     const seen = new Set();
     const result = [];
 
-    sameDayEvents.forEach(ev => {
+    sameDayEvents.forEach((ev) => {
       const normTitle = this.normalizeTitle(ev.title);
       const dayKey = start.format("YYYY-MM-DD");
       const key = `event|${normTitle}|${dayKey}`;
@@ -779,7 +848,7 @@ Module.register("MMM-GlassCalendar", {
       if (seen.has(key)) return;
 
       // Fuzzy dedupe: skip if similar title/time already added for this day
-      const isDuplicate = result.some(existing =>
+      const isDuplicate = result.some((existing) =>
         this.isDuplicateEventForDay(ev, existing, start)
       );
 
@@ -808,7 +877,10 @@ Module.register("MMM-GlassCalendar", {
     if (diffMinutes > 45) return false;
 
     // Also align on the same day (should already be true from caller)
-    return evA.startDate.isSame(dayStart, "day") || evB.startDate.isSame(dayStart, "day");
+    return (
+      evA.startDate.isSame(dayStart, "day") ||
+      evB.startDate.isSame(dayStart, "day")
+    );
   },
 
   titleSimilarity(a, b) {
@@ -819,7 +891,7 @@ Module.register("MMM-GlassCalendar", {
     const setA = new Set(tokensA);
     const setB = new Set(tokensB);
     let intersect = 0;
-    setA.forEach(t => {
+    setA.forEach((t) => {
       if (setB.has(t)) intersect += 1;
     });
 
@@ -850,21 +922,21 @@ Module.register("MMM-GlassCalendar", {
         const r = parseInt(hex[0] + hex[0], 16);
         const g = parseInt(hex[1] + hex[1], 16);
         const b = parseInt(hex[2] + hex[2], 16);
-        if ([r, g, b].some(v => Number.isNaN(v))) return null;
+        if ([r, g, b].some((v) => Number.isNaN(v))) return null;
         return { r, g, b };
       }
       if (hex.length === 6) {
         const r = parseInt(hex.slice(0, 2), 16);
         const g = parseInt(hex.slice(2, 4), 16);
         const b = parseInt(hex.slice(4, 6), 16);
-        if ([r, g, b].some(v => Number.isNaN(v))) return null;
+        if ([r, g, b].some((v) => Number.isNaN(v))) return null;
         return { r, g, b };
       }
       if (hex.length === 8) {
         const r = parseInt(hex.slice(0, 2), 16);
         const g = parseInt(hex.slice(2, 4), 16);
         const b = parseInt(hex.slice(4, 6), 16);
-        if ([r, g, b].some(v => Number.isNaN(v))) return null;
+        if ([r, g, b].some((v) => Number.isNaN(v))) return null;
         return { r, g, b };
       }
       return null;
@@ -875,8 +947,8 @@ Module.register("MMM-GlassCalendar", {
         .split(/[,\\s]+/)
         .filter(Boolean)
         .slice(0, 3)
-        .map(n => parseInt(n, 10));
-      if (nums.length === 3 && nums.every(v => !Number.isNaN(v))) {
+        .map((n) => parseInt(n, 10));
+      if (nums.length === 3 && nums.every((v) => !Number.isNaN(v))) {
         return { r: nums[0], g: nums[1], b: nums[2] };
       }
     }
@@ -933,7 +1005,7 @@ Module.register("MMM-GlassCalendar", {
       b = hue2rgb(p, q, h - 1 / 3);
     }
 
-    const toHex = x => {
+    const toHex = (x) => {
       const v = Math.round(x * 255)
         .toString(16)
         .padStart(2, "0");
@@ -1019,8 +1091,10 @@ Module.register("MMM-GlassCalendar", {
     if (cond.includes("thunder")) return "fa-solid fa-cloud-bolt";
     if (cond.includes("rain")) return "fa-solid fa-cloud-showers-heavy";
     if (cond.includes("snow")) return "fa-solid fa-snowflake";
-    if (cond.includes("fog") || cond.includes("mist")) return "fa-solid fa-smog";
-    if (cond.includes("sun") || cond.includes("clear")) return "fa-solid fa-sun";
+    if (cond.includes("fog") || cond.includes("mist"))
+      return "fa-solid fa-smog";
+    if (cond.includes("sun") || cond.includes("clear"))
+      return "fa-solid fa-sun";
     if (cond.includes("cloud")) return "fa-solid fa-cloud-sun";
 
     return "fa-solid fa-cloud";
@@ -1037,7 +1111,11 @@ Module.register("MMM-GlassCalendar", {
     let sunrise = this.config.sunriseHour;
     let sunset = this.config.sunsetHour;
 
-    if (this.weatherSummary && this.weatherSummary.sunrise && this.weatherSummary.sunset) {
+    if (
+      this.weatherSummary &&
+      this.weatherSummary.sunrise &&
+      this.weatherSummary.sunset
+    ) {
       try {
         sunrise = moment(this.weatherSummary.sunrise).hour();
         sunset = moment(this.weatherSummary.sunset).hour();
