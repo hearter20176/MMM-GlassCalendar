@@ -125,11 +125,10 @@
 
 .glass-cal-title {
   font-weight: 650;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   font-size: 0.9rem;
-  color: var(--glass-ink);
-  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.25);
+  color: #e9edf5;
 }
 
 .glass-cal-meta {
