@@ -141,6 +141,10 @@
   font-weight: 600;
 }
 
+.glass-cal-meta .loading-text {
+  color: rgba(233, 237, 245, 0.85);
+}
+
 .glass-separator {
   opacity: 0.55;
 }
