@@ -38,7 +38,11 @@
   backdrop-filter: blur(22px) saturate(140%);
   -webkit-backdrop-filter: blur(22px) saturate(140%);
   overflow: hidden;
-  color: #e9edf5;
+  --glass-ink: #e9edf5;
+  --glass-muted: rgba(233, 237, 245, 0.7);
+  --glass-accent: #7dd3fc;
+  --glass-accent-strong: #38bdf8;
+  color: var(--glass-ink);
   font-family: "SF Pro Display", "SF Pro Text", "Inter", "Segoe UI", -apple-system, system-ui, sans-serif;
   letter-spacing: 0.01em;
   gap: 0px 8px;
@@ -61,19 +65,19 @@
 }
 
 .glass-calendar-card.glass-theme-dark {
-  --glass-surface: #0f172ad1;
-  --glass-surface-soft: #ffffff0d;
+  --glass-surface: rgba(15, 23, 42, 0.82);
+  --glass-surface-soft: rgba(255, 255, 255, 0.05);
   --glass-ink: #e9edf5;
-  --glass-muted: #e9edf5b3;
+  --glass-muted: rgba(233, 237, 245, 0.7);
   --glass-accent: #7dd3fc;
   --glass-accent-strong: #38bdf8;
 }
 
 .glass-calendar-card.glass-theme-light {
-  --glass-surface: #f4f7fce0;
-  --glass-surface-soft: #ffffffb3;
+  --glass-surface: rgba(244, 247, 252, 0.9);
+  --glass-surface-soft: rgba(255, 255, 255, 0.7);
   --glass-ink: #0f172a;
-  --glass-muted: #0f172a99;
+  --glass-muted: rgba(15, 23, 42, 0.6);
   --glass-accent: #38bdf8;
   --glass-accent-strong: #0ea5e9;
   color: var(--glass-ink);
@@ -121,10 +125,11 @@
 
 .glass-cal-title {
   font-weight: 650;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   color: var(--glass-ink);
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.25);
 }
 
 .glass-cal-meta {
@@ -133,6 +138,8 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  letter-spacing: 0.01em;
+  font-weight: 600;
 }
 
 .glass-separator {
@@ -193,10 +200,12 @@
 .glass-cal-agenda-item {
   display: flex;
   align-items: baseline;
-  font-size: 0.74rem;
+  font-size: 0.76rem;
+  font-weight: 600;
   line-height: 1.35;
   margin-bottom: 2px;
   color: var(--glass-ink);
+  letter-spacing: 0.01em;
 }
 
 .glass-cal-agenda-item:last-child {
@@ -323,11 +332,13 @@
 
 /* Day number */
 .glass-cal-daynum {
-  font-size: 0.78rem;
-  font-weight: 650;
+  font-size: 0.82rem;
+  font-weight: 700;
   margin-bottom: 4px;
   position: relative;
   z-index: 1;
+  color: var(--glass-ink);
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.28);
 }
 
 /* Today */
@@ -358,10 +369,12 @@
 .glass-cal-event-item {
   display: flex;
   align-items: center;
-  font-size: 0.66rem;
-  line-height: 1.3;
+  font-size: 0.7rem;
+  line-height: 1.32;
+  font-weight: 600;
   margin-bottom: 2px;
   color: var(--glass-ink);
+  letter-spacing: 0.01em;
 }
 
 .glass-cal-event-dot {
