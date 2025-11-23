@@ -441,7 +441,7 @@ Module.register("MMM-GlassCalendar", {
       spin.className = "glass-spinner";
       metaSpan.appendChild(spin);
       const txt = document.createElement("span");
-      txt.innerHTML = "Loading calendars...";
+      txt.innerText = "Loading calendars...";
       metaSpan.appendChild(txt);
     } else if (this.lastFetch) {
       metaSpan.innerHTML = "Updated " + moment(this.lastFetch).fromNow();
