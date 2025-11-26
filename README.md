@@ -1,6 +1,6 @@
 # MMM-GlassCalendar
 
-An iOS-style “liquid glass” monthly calendar module for MagicMirror² with ICS/MyAgenda/Calendar support, fuzzy dedupe, heatmap, weather/agenda preview, rich icon mapping, and per-day backgrounds.
+An iOS-style "liquid glass" monthly calendar module for MagicMirror with ICS/MyAgenda/Calendar support, fuzzy dedupe, heatmap, weather/agenda preview, rich icon mapping, and per-day backgrounds.
 
 ## Highlights
 - ICS via node_helper (RRULE aware) plus optional Calendar/MyAgenda/AmbientWeather payloads.
@@ -10,7 +10,7 @@ An iOS-style “liquid glass” monthly calendar module for MagicMirror² with I
 - Optional weather row and agenda preview chips; renders all events (no overflow truncation).
 
 ## Requirements
-- MagicMirror².
+- MagicMirror.
 - Local assets:
   - `lib/boxicons/boxicons.min.css` and fonts in `lib/boxicons/fonts/`.
   - `lib/iconoir/` with `iconoir.css` or SVGs (recommended: SVGs as shipped in this repo); reference Iconoir icons by filename without extension.
@@ -59,10 +59,10 @@ In `config/config.js`:
     maxEventsPerDay: 6,
     showOverflowIndicator: false, // all events are shown by default
     eventIcons: {
-      "birthday": { type: "fa", icon: "fa-solid fa-cake-candles" },
-      "flight":   { type: "box", icon: "bx bx-plane-alt" },
-      "office":   { type: "iconoir", icon: "briefcase" },
-      "run":      { type: "iconify", icon: "mdi:run" }
+      birthday: { type: "fa", icon: "fa-solid fa-cake-candles" },
+      flight:   { type: "box", icon: "bx bx-plane-alt" },
+      office:   { type: "iconoir", icon: "briefcase" },
+      run:      { type: "iconify", icon: "mdi:run" }
     },
     calendarVisibility: { "Holidays": true },
 
@@ -91,13 +91,22 @@ In `config/config.js`:
 - `iconify`: Any Iconify icon id, e.g. `mdi:airplane`.
 
 ### Day backgrounds
-- `dayBackgrounds`: map of `YYYY-MM-DD` → image path/URL (string). If not wrapped with `url()`, it will be auto-wrapped.
+- `dayBackgrounds`: map of `YYYY-MM-DD` -> image path/URL (string). If not wrapped with `url()`, it will be auto-wrapped.
 - `dayBackgroundRules`: array of `{ calendar?, keyword?, image }`. If any event for that day matches the calendar substring and keyword in the title, the image is applied.
 - Use browser-visible paths (e.g., `/modules/MMM-GlassCalendar/img/snow.jpg` or another served URL).
 
+## Timezone handling
+- ICS parsing applies calendar timezones to recurring and floating events, preventing early/late shifts across calendars.
+- Set `timeZone` plus `forceTimeZone: true` on a source to pin floating times (DTSTART without TZ) to that zone.
+
+## Tests
+- Install dependencies: `npm install`
+- Run all tests (timezone coverage): `npm test`
+- Run a specific file: `node --test __tests__/timezone.test.js`
+
 ## Styling Notes
 - Card uses a liquid glass shimmer and full-width layout in `middle_center`.
-+- Heatmap and day backgrounds sit behind content; all events render with contrast-aware icons.
+- Heatmap and day backgrounds sit behind content; all events render with contrast-aware icons.
 - Legend uses brighter text with a subtle shadow for readability.
 
 ## Release Checklist (manual)

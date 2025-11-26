@@ -7,6 +7,10 @@
 const NodeHelper = require("node_helper");
 const ical = require("node-ical");
 const fetch = (...args) => import("node-fetch").then(({ default: f }) => f(...args));
+const {
+  resolveTimeZone,
+  convertToTimeZone
+} = require("./lib/ics-timezone");
 
 module.exports = NodeHelper.create({
   start() {
@@ -106,14 +110,24 @@ module.exports = NodeHelper.create({
         ev.datetype === "date" ||
         (!ev.start.tz && ev.start.getHours() === 0 && end.getHours() === 0);
 
+      const tzid = resolveTimeZone(ev, source);
+      const adjustedStart = start;
+      const adjustedEnd = end;
+
       if (ev.rrule) {
         const dates = ev.rrule.between(rangeStart, rangeEnd, true);
+        const durationMs = adjustedEnd - adjustedStart;
+
         dates.forEach(d => {
-          const occurrenceEnd = new Date(d.getTime() + (end - start));
+          const occurrenceStart =
+            !allDay && tzid ? convertToTimeZone(d, tzid) : d;
+          const occurrenceEnd = new Date(
+            occurrenceStart.getTime() + durationMs
+          );
           events.push({
             title: ev.summary || "",
             calendarName: source.name || "",
-            startDate: d.toISOString(),
+            startDate: occurrenceStart.toISOString(),
             endDate: occurrenceEnd.toISOString(),
             allDay,
             color: source.color || null,
@@ -128,8 +142,8 @@ module.exports = NodeHelper.create({
       events.push({
         title: ev.summary || "",
         calendarName: source.name || "",
-        startDate: start.toISOString(),
-        endDate: end.toISOString(),
+        startDate: adjustedStart.toISOString(),
+        endDate: adjustedEnd.toISOString(),
         allDay,
         color: source.color || null,
         colorSource: source.color || null
