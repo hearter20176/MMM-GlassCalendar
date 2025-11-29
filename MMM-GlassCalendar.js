@@ -67,6 +67,10 @@ Module.register("MMM-GlassCalendar", {
     sunriseHour: 7,
     sunsetHour: 19,
 
+    // Performance
+    performanceProfile: "auto", // auto | pi | full
+    reduceMotion: false,
+
     // Intervals
     updateInterval: 15 * 60 * 1000,
     animationSpeed: 400
@@ -120,6 +124,24 @@ Module.register("MMM-GlassCalendar", {
     this.myAgendaPreview = [];
     this.lastFetch = null;
     this.hiddenCalendars = new Set();
+    this.domUpdateTimer = null;
+    this.performanceProfile = this.resolvePerformanceProfile();
+    this.performanceTuning = {
+      domUpdateDebounce: this.performanceProfile === "pi" ? 700 : 0,
+      maxEventsPerDay:
+        this.performanceProfile === "pi"
+          ? Math.min(this.config.maxEventsPerDay, 2)
+          : this.config.maxEventsPerDay,
+      heatmapEnabled: this.performanceProfile === "pi" ? false : this.config.heatmapEnabled,
+      allowMarquee:
+        this.config.reduceMotion !== true &&
+        this.performanceProfile !== "pi" &&
+        !(
+          typeof window !== "undefined" &&
+          window.matchMedia &&
+          window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        )
+    };
 
     moment.locale(this.config.locale);
 
@@ -133,7 +155,7 @@ Module.register("MMM-GlassCalendar", {
     if (this.config.icalSources && this.config.icalSources.length > 0) {
       this.scheduleFetch();
     } else {
-      this.updateDom();
+      this.queueDomUpdate();
     }
   },
 
@@ -245,7 +267,7 @@ Module.register("MMM-GlassCalendar", {
 
   handleAmbientWeather(payload) {
     this.weatherSummary = payload || null;
-    this.updateDom(this.config.animationSpeed);
+    this.queueDomUpdate(this.config.animationSpeed);
   },
 
   // ---------------------------------------------------------------------------
@@ -333,7 +355,7 @@ Module.register("MMM-GlassCalendar", {
     this.monthEvents = this.monthEvents.concat(normalized);
     this.pruneDayDuplicates(monthStart, monthEnd);
     this.loaded = true;
-    this.updateDom(this.config.animationSpeed);
+    this.queueDomUpdate(this.config.animationSpeed);
   },
 
   pruneEventsBySource(sourceType) {
@@ -563,7 +585,7 @@ Module.register("MMM-GlassCalendar", {
         } else {
           this.hiddenCalendars.add(name);
         }
-        this.updateDom(this.config.animationSpeed);
+        this.queueDomUpdate(this.config.animationSpeed);
       });
 
       legend.appendChild(item);
@@ -671,7 +693,7 @@ Module.register("MMM-GlassCalendar", {
       cell.style.setProperty("--day-bg-opacity", "0.35");
     }
 
-    if (this.config.heatmapEnabled && eventCount > 0) {
+    if (this.performanceTuning.heatmapEnabled && eventCount > 0) {
       const intensity = Math.min(1, eventCount / this.config.heatmapMaxEvents);
       const overlay = document.createElement("div");
       overlay.className = "glass-cal-heatmap-overlay";
@@ -693,7 +715,11 @@ Module.register("MMM-GlassCalendar", {
       return a.startDate - b.startDate;
     });
 
-    eventsForDay.forEach((ev) => {
+    const maxEvents = this.performanceTuning.maxEventsPerDay || this.config.maxEventsPerDay;
+    const limitedEvents = eventsForDay.slice(0, maxEvents);
+    const hasOverflow = eventsForDay.length > limitedEvents.length && this.config.showOverflowIndicator;
+
+    limitedEvents.forEach((ev) => {
       if (ev.allDay) {
         const fullItem = document.createElement("div");
         fullItem.className = "glass-cal-event-item glass-full-day";
@@ -707,7 +733,8 @@ Module.register("MMM-GlassCalendar", {
         }
 
         const title = ev.title || "(no title)";
-        if (title.length > 14) {
+        const allowMarquee = this.performanceTuning.allowMarquee;
+        if (allowMarquee && title.length > 14) {
           const marquee = document.createElement("div");
           marquee.className = "glass-marquee";
           const span = document.createElement("span");
@@ -747,12 +774,13 @@ Module.register("MMM-GlassCalendar", {
       const title = ev.title || "(no title)";
       let timeStr = ev.startDate.format("LT");
       if (ev.endDate && !ev.endDate.isSame(ev.startDate, "minute")) {
-        timeStr += " – " + ev.endDate.format("LT");
+        timeStr += " - " + ev.endDate.format("LT");
       }
 
       const fullText = `${timeStr} &bull; ${title}`;
 
-      if (fullText.length > 18) {
+      const allowMarquee = this.performanceTuning.allowMarquee;
+      if (allowMarquee && fullText.length > 18) {
         const marquee = document.createElement("div");
         marquee.className = "glass-marquee";
         const span = document.createElement("span");
@@ -766,6 +794,13 @@ Module.register("MMM-GlassCalendar", {
       evItem.appendChild(label);
       eventsWrap.appendChild(evItem);
     });
+
+    if (hasOverflow) {
+      const overflow = document.createElement("div");
+      overflow.className = "glass-cal-event-item glass-cal-overflow";
+      overflow.textContent = `+${eventsForDay.length - limitedEvents.length} more`;
+      eventsWrap.appendChild(overflow);
+    }
 
     cell.appendChild(eventsWrap);
     return cell;
@@ -1132,5 +1167,34 @@ Module.register("MMM-GlassCalendar", {
       return "light";
     }
     return "dark";
+  },
+
+  queueDomUpdate(speed = this.config.animationSpeed) {
+    const debounce = this.performanceTuning.domUpdateDebounce;
+    if (!debounce) {
+      this.updateDom(speed);
+      return;
+    }
+
+    if (this.domUpdateTimer) {
+      clearTimeout(this.domUpdateTimer);
+    }
+    this.domUpdateTimer = setTimeout(() => {
+      this.updateDom(speed);
+      this.domUpdateTimer = null;
+    }, debounce);
+  },
+
+  resolvePerformanceProfile() {
+    const requested = (this.config.performanceProfile || "auto").toLowerCase();
+    if (requested === "pi" || requested === "full") return requested;
+    const ua =
+      typeof navigator !== "undefined" && navigator.userAgent ? navigator.userAgent : "";
+    const isPi =
+      ua.includes("raspberry") ||
+      ua.includes("armv7") ||
+      ua.includes("aarch64") ||
+      ua.includes("linux arm");
+    return isPi ? "pi" : "full";
   }
 });
