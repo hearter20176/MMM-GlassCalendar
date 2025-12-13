@@ -735,12 +735,7 @@ Module.register("MMM-GlassCalendar", {
         const title = ev.title || "(no title)";
         const allowMarquee = this.performanceTuning.allowMarquee;
         if (allowMarquee && title.length > 14) {
-          const marquee = document.createElement("div");
-          marquee.className = "glass-marquee";
-          const span = document.createElement("span");
-          span.innerHTML = title;
-          marquee.appendChild(span);
-          fullItem.appendChild(marquee);
+          fullItem.appendChild(this.buildMarquee(title));
         } else {
           fullItem.appendChild(document.createTextNode(title));
         }
@@ -781,12 +776,7 @@ Module.register("MMM-GlassCalendar", {
 
       const allowMarquee = this.performanceTuning.allowMarquee;
       if (allowMarquee && fullText.length > 18) {
-        const marquee = document.createElement("div");
-        marquee.className = "glass-marquee";
-        const span = document.createElement("span");
-        span.innerHTML = fullText;
-        marquee.appendChild(span);
-        label.appendChild(marquee);
+        label.appendChild(this.buildMarquee(fullText));
       } else {
         label.innerHTML = fullText;
       }
@@ -804,6 +794,38 @@ Module.register("MMM-GlassCalendar", {
 
     cell.appendChild(eventsWrap);
     return cell;
+  },
+
+  buildMarquee(text) {
+    const marquee = document.createElement("div");
+    marquee.className = "glass-marquee";
+
+    const track = document.createElement("div");
+    track.className = "glass-marquee-track";
+
+    const primary = document.createElement("span");
+    primary.innerHTML = text;
+
+    const clone = document.createElement("span");
+    clone.innerHTML = text;
+
+    track.appendChild(primary);
+    track.appendChild(clone);
+    marquee.appendChild(track);
+
+    const duration = this.getMarqueeDuration(text);
+    if (duration) {
+      marquee.style.setProperty("--glass-marquee-duration", `${duration}s`);
+    }
+
+    return marquee;
+  },
+
+  getMarqueeDuration(text) {
+    if (!text) return null;
+    const len = text.length;
+    const seconds = Math.max(12, Math.min(24, len * 0.22));
+    return Number.isFinite(seconds) ? parseFloat(seconds.toFixed(2)) : null;
   },
 
   getDayBackgroundForDate(dateKey, eventsForDay) {
