@@ -54,6 +54,8 @@ In `config/config.js`:
     showWeekNumbers: false,
     highlightToday: true,
     dimPastDays: true,
+    performanceProfile: "auto",  // "auto" | "pi" | "full"
+    reduceMotion: false,         // true disables marquee/heatmap on Pi or reduced-motion
 
     // Events
     maxEventsPerDay: 6,
@@ -94,6 +96,11 @@ In `config/config.js`:
 - `dayBackgrounds`: map of `YYYY-MM-DD` -> image path/URL (string). If not wrapped with `url()`, it will be auto-wrapped.
 - `dayBackgroundRules`: array of `{ calendar?, keyword?, image }`. If any event for that day matches the calendar substring and keyword in the title, the image is applied.
 - Use browser-visible paths (e.g., `/modules/MMM-GlassCalendar/img/snow.jpg` or another served URL).
+
+### Performance options
+- `performanceProfile`: `"auto"` (detect Pi/ARM), `"pi"` (force low-motion, debounce DOM, cap per-day events), `"full"` (keep all visuals).
+- `reduceMotion`: Force-disable marquee/heatmap motion even on non-Pi devices (also triggered by `prefers-reduced-motion`).
+- `maxEventsPerDay` + `showOverflowIndicator`: lowering the cap reduces DOM nodes on low-power devices.
 
 ## Timezone handling
 - ICS parsing applies calendar timezones to recurring and floating events, preventing early/late shifts across calendars.

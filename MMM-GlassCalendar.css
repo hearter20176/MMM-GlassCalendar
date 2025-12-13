@@ -511,16 +511,21 @@ iconify-icon.glass-event-icon {
   display: block;
 }
 
+.glass-marquee-track {
+  display: inline-flex;
+  align-items: center;
+  animation: glass-marquee-scroll var(--glass-marquee-duration, 16s) linear infinite;
+  will-change: transform;
+}
+
 .glass-marquee span {
   display: inline-block;
-  min-width: 100%;
-  padding-left: 0;
-  animation: glass-marquee-scroll 11s linear infinite;
+  padding-right: 28px;
 }
 
 @keyframes glass-marquee-scroll {
-  0% { transform: translateX(100%); }
-  100% { transform: translateX(-100%); }
+  0% { transform: translate3d(0, 0, 0); }
+  100% { transform: translate3d(-50%, 0, 0); }
 }
 
 @media (max-width: 600px) {
