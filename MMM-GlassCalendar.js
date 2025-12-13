@@ -824,7 +824,7 @@ Module.register("MMM-GlassCalendar", {
   getMarqueeDuration(text) {
     if (!text) return null;
     const len = text.length;
-    const seconds = Math.max(12, Math.min(24, len * 0.22));
+    const seconds = Math.max(14, Math.min(30, len * 0.28));
     return Number.isFinite(seconds) ? parseFloat(seconds.toFixed(2)) : null;
   },
 

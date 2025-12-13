@@ -325,6 +325,12 @@
   pointer-events: none;
 }
 
+.glass-calendar-card.glass-theme-light .glass-cal-day::before {
+  mix-blend-mode: normal;
+  opacity: calc(var(--day-bg-opacity, 0) + 0.08);
+  filter: saturate(1.08);
+}
+
 .glass-cal-day > * {
   position: relative;
   z-index: 1;
@@ -509,6 +515,7 @@ iconify-icon.glass-event-icon {
   white-space: nowrap;
   width: 100%;
   display: block;
+  contain: content;
 }
 
 .glass-marquee-track {
@@ -516,6 +523,7 @@ iconify-icon.glass-event-icon {
   align-items: center;
   animation: glass-marquee-scroll var(--glass-marquee-duration, 16s) linear infinite;
   will-change: transform;
+  transform: translate3d(0, 0, 0);
 }
 
 .glass-marquee span {
