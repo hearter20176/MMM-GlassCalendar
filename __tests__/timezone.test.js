@@ -4,6 +4,7 @@ const ical = require("node-ical");
 const {
   resolveTimeZone,
   convertToTimeZone,
+  convertFloatingToTimeZone,
   shiftToTimeZone
 } = require("../lib/ics-timezone");
 
@@ -62,7 +63,7 @@ const getDisplayShiftMs = (date, timeZone) => {
 
 const normalizeEventDate = (date, tzid, allDay, hasTimeZone) => {
   if (!date || allDay || !tzid) return date;
-  return hasTimeZone ? date : convertToTimeZone(date, tzid);
+  return hasTimeZone ? date : convertFloatingToTimeZone(date, tzid);
 };
 
 const applyDisplayTimeZone = (date, tzid, forceTimeZone, allDay) => {
