@@ -9,8 +9,33 @@ const ical = require("node-ical");
 const fetch = (...args) => import("node-fetch").then(({ default: f }) => f(...args));
 const {
   resolveTimeZone,
-  convertToTimeZone
+  convertToTimeZone,
+  shiftToTimeZone
 } = require("./lib/ics-timezone");
+
+const isCancelled = (ev) =>
+  ev && ev.status && String(ev.status).toUpperCase() === "CANCELLED";
+
+const getRecurrenceKey = (date) => date.toISOString().slice(0, 10);
+
+const getDisplayShiftMs = (date, timeZone) => {
+  if (!date || !timeZone) return 0;
+  const shifted = shiftToTimeZone(date, timeZone);
+  return shifted.getTime() - date.getTime();
+};
+
+const normalizeEventDate = (date, tzid, allDay, hasTimeZone) => {
+  if (!date || allDay || !tzid) return date;
+  return hasTimeZone ? date : convertToTimeZone(date, tzid);
+};
+
+const applyDisplayTimeZone = (date, tzid, forceTimeZone, allDay) => {
+  if (!date || allDay || !forceTimeZone || !tzid) return date;
+  return shiftToTimeZone(date, tzid);
+};
+
+const isInRange = (start, end, rangeStart, rangeEnd) =>
+  !!start && !!end && !(end < rangeStart || start > rangeEnd);
 
 module.exports = NodeHelper.create({
   start() {
@@ -97,10 +122,25 @@ module.exports = NodeHelper.create({
     }
 
     const events = [];
+    const forceTimeZone =
+      !!(source && source.forceTimeZone && source.timeZone);
+    const padMs = forceTimeZone && source.timeZone
+      ? Math.max(
+        Math.abs(getDisplayShiftMs(rangeStart, source.timeZone)),
+        Math.abs(getDisplayShiftMs(rangeEnd, source.timeZone))
+      )
+      : 0;
+    const rangeStartPadded = padMs
+      ? new Date(rangeStart.getTime() - padMs)
+      : rangeStart;
+    const rangeEndPadded = padMs
+      ? new Date(rangeEnd.getTime() + padMs)
+      : rangeEnd;
 
     Object.keys(data).forEach(key => {
       const ev = data[key];
       if (!ev || ev.type !== "VEVENT") return;
+      if (isCancelled(ev)) return;
 
       const start = ev.start;
       const end = ev.end || ev.start;
@@ -111,24 +151,84 @@ module.exports = NodeHelper.create({
         (!ev.start.tz && ev.start.getHours() === 0 && end.getHours() === 0);
 
       const tzid = resolveTimeZone(ev, source);
-      const adjustedStart = start;
-      const adjustedEnd = end;
+      const normalizedStart = normalizeEventDate(
+        start,
+        tzid,
+        allDay,
+        !!(start && start.tz)
+      );
+      const normalizedEnd = normalizeEventDate(
+        end,
+        tzid,
+        allDay,
+        !!(end && end.tz)
+      );
+      const durationMs =
+        normalizedStart && normalizedEnd
+          ? Math.max(0, normalizedEnd - normalizedStart)
+          : 0;
 
       if (ev.rrule) {
-        const dates = ev.rrule.between(rangeStart, rangeEnd, true);
-        const durationMs = adjustedEnd - adjustedStart;
+        const dates = ev.rrule.between(rangeStartPadded, rangeEndPadded, true);
 
         dates.forEach(d => {
-          const occurrenceStart =
-            !allDay && tzid ? convertToTimeZone(d, tzid) : d;
-          const occurrenceEnd = new Date(
-            occurrenceStart.getTime() + durationMs
+          const recurrenceKey = getRecurrenceKey(d);
+          if (ev.exdate && ev.exdate[recurrenceKey]) return;
+
+          const recurrence =
+            ev.recurrences && ev.recurrences[recurrenceKey];
+          if (recurrence && isCancelled(recurrence)) return;
+
+          let occurrenceStart;
+          let occurrenceEnd;
+
+          if (recurrence) {
+            const recStart = recurrence.start || d;
+            const recEnd = recurrence.end || null;
+            occurrenceStart = normalizeEventDate(
+              recStart,
+              tzid,
+              allDay,
+              !!(recStart && recStart.tz)
+            );
+            occurrenceEnd = recEnd
+              ? normalizeEventDate(
+                recEnd,
+                tzid,
+                allDay,
+                !!(recEnd && recEnd.tz)
+              )
+              : new Date(occurrenceStart.getTime() + durationMs);
+          } else {
+            occurrenceStart =
+              !allDay && tzid ? convertToTimeZone(d, tzid) : d;
+            occurrenceEnd = new Date(
+              occurrenceStart.getTime() + durationMs
+            );
+          }
+
+          const displayStart = applyDisplayTimeZone(
+            occurrenceStart,
+            tzid,
+            forceTimeZone,
+            allDay
           );
+          const displayEnd = applyDisplayTimeZone(
+            occurrenceEnd,
+            tzid,
+            forceTimeZone,
+            allDay
+          );
+
+          if (!isInRange(displayStart, displayEnd, rangeStart, rangeEnd)) {
+            return;
+          }
+
           events.push({
             title: ev.summary || "",
             calendarName: source.name || "",
-            startDate: occurrenceStart.toISOString(),
-            endDate: occurrenceEnd.toISOString(),
+            startDate: displayStart.toISOString(),
+            endDate: displayEnd.toISOString(),
             allDay,
             color: source.color || null,
             colorSource: source.color || null
@@ -137,13 +237,26 @@ module.exports = NodeHelper.create({
         return;
       }
 
-      if (end < rangeStart || start > rangeEnd) return;
+      const displayStart = applyDisplayTimeZone(
+        normalizedStart,
+        tzid,
+        forceTimeZone,
+        allDay
+      );
+      const displayEnd = applyDisplayTimeZone(
+        normalizedEnd,
+        tzid,
+        forceTimeZone,
+        allDay
+      );
+
+      if (!isInRange(displayStart, displayEnd, rangeStart, rangeEnd)) return;
 
       events.push({
         title: ev.summary || "",
         calendarName: source.name || "",
-        startDate: adjustedStart.toISOString(),
-        endDate: adjustedEnd.toISOString(),
+        startDate: displayStart.toISOString(),
+        endDate: displayEnd.toISOString(),
         allDay,
         color: source.color || null,
         colorSource: source.color || null

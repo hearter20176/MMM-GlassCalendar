@@ -104,7 +104,7 @@ In `config/config.js`:
 
 ## Timezone handling
 - ICS parsing applies calendar timezones to recurring and floating events, preventing early/late shifts across calendars.
-- Set `timeZone` plus `forceTimeZone: true` on a source to pin floating times (DTSTART without TZ) to that zone.
+- Set `timeZone` plus `forceTimeZone: true` on a source to pin floating times (DTSTART without TZ) and render times in that zone even if the host timezone differs.
 
 ## Tests
 - Install dependencies: `npm install`
