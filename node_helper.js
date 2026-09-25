@@ -6,6 +6,9 @@
 
 const NodeHelper = require("node_helper");
 const ical = require("node-ical");
+// Private ICS addresses grant read access to the calendar; never write them to logs.
+const maskUrl = (text) => String(text || "").replace(/\/private-[^/\s]+\//g, "/private-<masked>/");
+const errText = (err) => maskUrl(err && err.message ? err.message : String(err));
 const fetch = (...args) => import("node-fetch").then(({ default: f }) => f(...args));
 const {
   resolveTimeZone,
@@ -73,12 +76,12 @@ module.exports = NodeHelper.create({
           const events = await this.fetchIcs(source, monthStart, monthEnd);
           allEvents.push(...events);
         } catch (err) {
-          console.error("[MMM-GlassCalendar] ICS fetch error for", source.url, err);
+          console.error(`[MMM-GlassCalendar] ICS fetch error for ${maskUrl(source.url)}: ${errText(err)}`);
           this.sendSocketNotification("GLASSCALENDAR_ERROR", {
             identifier,
             monthOffset,
             url: source.url,
-            message: err && err.message ? err.message : String(err)
+            message: errText(err)
           });
         }
       }
@@ -93,13 +96,13 @@ module.exports = NodeHelper.create({
       this.sendSocketNotification("GLASSCALENDAR_ERROR", {
         identifier,
         monthOffset,
-        message: err && err.message ? err.message : String(err)
+        message: errText(err)
       });
     }
   },
 
   async fetchIcs(source, rangeStart, rangeEnd) {
-    console.log("[MMM-GlassCalendar] Fetching ICS:", source.url);
+    console.log("[MMM-GlassCalendar] Fetching ICS:", maskUrl(source.url));
 
     const response = await fetch(source.url, {
       headers: { "User-Agent": "MagicMirror-GlassCalendar" }
@@ -118,7 +121,7 @@ module.exports = NodeHelper.create({
     try {
       data = ical.sync.parseICS(text);
     } catch (err) {
-      console.error("[MMM-GlassCalendar] parseICS failed:", err);
+      console.error(`[MMM-GlassCalendar] parseICS failed: ${errText(err)}`);
       throw err;
     }
 
@@ -264,7 +267,7 @@ module.exports = NodeHelper.create({
       });
     });
 
-    console.log("[MMM-GlassCalendar] Parsed", events.length, "events from", source.url);
+    console.log("[MMM-GlassCalendar] Parsed", events.length, "events from", maskUrl(source.url));
     return events;
   }
 });
