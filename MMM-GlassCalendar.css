@@ -58,10 +58,12 @@
   position: absolute;
   inset: -20%;
   background: linear-gradient(120deg, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.35));
-  transform: translateX(-60%) rotate(8deg);
-  animation: glass-shimmer 16s linear infinite;
+  rotate: 8deg;
+  translate: -60% 0;
+  animation: glass-shimmer 24s linear infinite;
   opacity: 0.32;
   pointer-events: none;
+  will-change: translate, opacity;
 }
 
 .glass-calendar-card.glass-theme-dark {
@@ -100,6 +102,7 @@
   opacity: 0.45;
   pointer-events: none;
   animation: floatFade 18s ease-in-out infinite alternate;
+  will-change: transform, opacity;
 }
 
 @keyframes floatFade {
@@ -108,9 +111,9 @@
 }
 
 @keyframes glass-shimmer {
-  0% { transform: translateX(-60%) rotate(8deg); opacity: 0.32; }
-  50% { transform: translateX(30%) rotate(8deg); opacity: 0.14; }
-  100% { transform: translateX(120%) rotate(8deg); opacity: 0.32; }
+  0%   { translate: -60% 0; opacity: 0.32; }
+  50%  { translate: 30% 0;  opacity: 0.18; }
+  100% { translate: 120% 0; opacity: 0.32; }
 }
 
 /* Header */
@@ -521,7 +524,7 @@ iconify-icon.glass-event-icon {
 .glass-marquee-track {
   display: inline-flex;
   align-items: center;
-  animation: glass-marquee-scroll var(--glass-marquee-duration, 16s) linear infinite;
+  animation: glass-marquee-scroll var(--glass-marquee-duration, 70s) linear infinite;
   will-change: transform;
   transform: translate3d(0, 0, 0);
 }
