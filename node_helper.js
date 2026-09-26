@@ -7,8 +7,63 @@
 const NodeHelper = require("node_helper");
 const ical = require("node-ical");
 // Private ICS addresses grant read access to the calendar; never write them to logs.
-const maskUrl = (text) => String(text || "").replace(/\/private-[^/\s]+\//g, "/private-<masked>/");
+const maskUrl = (text) => String(text || "")
+  .replace(/\/private-[^/\s]+\//g, "/private-<masked>/")
+  .replace(/([?&](?:token|key|apikey)=)[^&\s]+/gi, "$1<masked>");
 const errText = (err) => maskUrl(err && err.message ? err.message : String(err));
+
+const fs = require("fs");
+const path = require("path");
+const crypto = require("crypto");
+
+const CACHE_DIR = path.join(__dirname, "cache");
+const CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+const RETRY_DELAYS_MS = [5000, 15000];
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const cacheFile = (url) =>
+  path.join(CACHE_DIR, crypto.createHash("sha256").update(url).digest("hex").slice(0, 16) + ".ics");
+
+// Fetch an ICS feed with a timeout and retries; if it still fails, fall back to the
+// last good copy on disk so a network hiccup shows slightly stale events instead of
+// an empty calendar. webcal:// is fetched as https://.
+async function fetchIcsText(rawUrl, userAgent, tag) {
+  const url = String(rawUrl).replace(/^webcal:\/\//i, "https://");
+  let lastErr;
+  for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
+    if (attempt) await sleep(RETRY_DELAYS_MS[attempt - 1]);
+    try {
+      const response = await fetch(url, {
+        headers: { "User-Agent": userAgent },
+        signal: AbortSignal.timeout(30000)
+      });
+      if (!response.ok) throw new Error("HTTP " + response.status);
+      const text = await response.text();
+      if (!text || text.indexOf("BEGIN:VCALENDAR") === -1) throw new Error("Invalid ICS content");
+      try {
+        fs.mkdirSync(CACHE_DIR, { recursive: true });
+        fs.writeFileSync(cacheFile(url), text);
+      } catch (err) {
+        // cache is best-effort
+      }
+      return text;
+    } catch (err) {
+      lastErr = err;
+      if (/^HTTP 40[13]$/.test(err.message)) break; // auth failures are not transient; 404/429 from Google can be
+    }
+  }
+  try {
+    const file = cacheFile(url);
+    const ageMs = Date.now() - fs.statSync(file).mtimeMs;
+    if (ageMs <= CACHE_MAX_AGE_MS) {
+      console.warn(`[${tag}] ${maskUrl(url)}: fetch failed (${errText(lastErr)}); ` +
+        `using cached copy from ${Math.round(ageMs / 60000)} min ago`);
+      return fs.readFileSync(file, "utf8");
+    }
+  } catch (err) {
+    // no usable cache
+  }
+  throw lastErr;
+}
 const fetch = (...args) => import("node-fetch").then(({ default: f }) => f(...args));
 const {
   resolveTimeZone,
@@ -104,18 +159,7 @@ module.exports = NodeHelper.create({
   async fetchIcs(source, rangeStart, rangeEnd) {
     console.log("[MMM-GlassCalendar] Fetching ICS:", maskUrl(source.url));
 
-    const response = await fetch(source.url, {
-      headers: { "User-Agent": "MagicMirror-GlassCalendar" }
-    });
-
-    if (!response.ok) {
-      throw new Error("HTTP " + response.status);
-    }
-
-    const text = await response.text();
-    if (!text || text.indexOf("BEGIN:VCALENDAR") === -1) {
-      throw new Error("Invalid ICS content");
-    }
+    const text = await fetchIcsText(source.url, "MagicMirror-GlassCalendar", "MMM-GlassCalendar");
 
     let data;
     try {
