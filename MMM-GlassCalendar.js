@@ -64,6 +64,8 @@ Module.register("MMM-GlassCalendar", {
 
     // Theme: "dark" | "light" | "auto" | "autoSun"
     theme: "autoSun",
+    // Scroll speed (px/s) for titles too long to fit
+    marqueeSpeed: 20,
     sunriseHour: 7,
     sunsetHour: 19,
 
@@ -430,6 +432,7 @@ Module.register("MMM-GlassCalendar", {
     card.appendChild(this.renderLegend());
 
     wrapper.appendChild(card);
+    this._startMarquees(wrapper);
     return wrapper;
   },
 
@@ -806,19 +809,49 @@ Module.register("MMM-GlassCalendar", {
     const primary = document.createElement("span");
     primary.innerHTML = text;
 
-    const clone = document.createElement("span");
-    clone.innerHTML = text;
-
     track.appendChild(primary);
-    track.appendChild(clone);
     marquee.appendChild(track);
-
-    const duration = this.getMarqueeDuration(text);
-    if (duration) {
-      marquee.style.setProperty("--glass-marquee-duration", `${duration}s`);
-    }
-
     return marquee;
+  },
+
+  // Scroll each overflowing title on its own loop: hold, scroll at marqueeSpeed px/s,
+  // hold, repeat. Each loop starts at a random point so titles don't move in lockstep,
+  // and titles that fit stay still. A ResizeObserver measures once a title is actually
+  // laid out (modules on hidden pages have no size) and re-measures on changes.
+  _startMarquees(root) {
+    if (typeof ResizeObserver === "undefined") return;
+    if (this._marqueeObserver) this._marqueeObserver.disconnect();
+    const speed = Number(this.config.marqueeSpeed) > 0 ? Number(this.config.marqueeSpeed) : 20;
+    const holdStartMs = 2500;
+    const holdEndMs = 2000;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const box = entry.target;
+        const track = box.querySelector(".glass-marquee-track");
+        if (!track) continue;
+        if (track._marqueeAnim) {
+          track._marqueeAnim.cancel();
+          track._marqueeAnim = null;
+        }
+        const distance = track.scrollWidth - box.clientWidth;
+        if (box.clientWidth === 0 || distance <= 2) continue;
+        const moveMs = (distance / speed) * 1000;
+        const total = holdStartMs + moveMs + holdEndMs;
+        const anim = track.animate(
+          [
+            { transform: "translateX(0)", offset: 0 },
+            { transform: "translateX(0)", offset: holdStartMs / total },
+            { transform: `translateX(${-distance}px)`, offset: (holdStartMs + moveMs) / total },
+            { transform: `translateX(${-distance}px)`, offset: 1 }
+          ],
+          { duration: total, iterations: Infinity }
+        );
+        anim.currentTime = Math.random() * total;
+        track._marqueeAnim = anim;
+      }
+    });
+    root.querySelectorAll(".glass-marquee").forEach((box) => observer.observe(box));
+    this._marqueeObserver = observer;
   },
 
   getMarqueeDuration(text) {

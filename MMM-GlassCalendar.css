@@ -511,32 +511,32 @@ iconify-icon.glass-event-icon {
   vertical-align: -0.05em;
 }
 
-/* Marquee */
+/* Marquee: long titles scroll via Web Animations in _startMarquees(); each title loops
+   on its own. The resets below also neutralise older marquee rules (continuous CSS
+   animation, zero-width inline-size containment) still present in css/custom.css. */
 .glass-marquee {
   position: relative;
+  display: block;
+  min-width: 0;
   overflow: hidden;
   white-space: nowrap;
-  width: 100%;
-  display: block;
-  contain: content;
+  contain: none;
+  container-type: normal;
 }
 
 .glass-marquee-track {
-  display: inline-flex;
-  align-items: center;
-  animation: glass-marquee-scroll var(--glass-marquee-duration, 70s) linear infinite;
-  will-change: transform;
-  transform: translate3d(0, 0, 0);
-}
-
-.glass-marquee span {
   display: inline-block;
-  padding-right: 28px;
+  white-space: nowrap;
+  animation: none;
+  transform: none;
+  will-change: transform;
 }
 
-@keyframes glass-marquee-scroll {
-  0% { transform: translate3d(0, 0, 0); }
-  100% { transform: translate3d(-50%, 0, 0); }
+.glass-marquee-track span,
+.glass-marquee span {
+  display: inline;
+  min-width: 0;
+  padding-right: 0;
 }
 
 @media (max-width: 600px) {
