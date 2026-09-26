@@ -23,6 +23,11 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const cacheFile = (url) =>
   path.join(CACHE_DIR, crypto.createHash("sha256").update(url).digest("hex").slice(0, 16) + ".ics");
 
+// A source may list several feeds (url: [ ... ]); fetch each as its own source
+// with the same name and settings instead of joining them into one bad URL.
+const expandSources = (sources) =>
+  sources.flatMap((s) => (s && Array.isArray(s.url) ? s.url.filter(Boolean).map((url) => ({ ...s, url })) : [s]));
+
 // Fetch an ICS feed with a timeout and retries; if it still fails, fall back to the
 // last good copy on disk so a network hiccup shows slightly stale events instead of
 // an empty calendar. webcal:// is fetched as https://.
@@ -125,7 +130,7 @@ module.exports = NodeHelper.create({
 
       const allEvents = [];
 
-      for (const source of icalSources) {
+      for (const source of expandSources(icalSources)) {
         if (!source || !source.url) continue;
         try {
           const events = await this.fetchIcs(source, monthStart, monthEnd);
