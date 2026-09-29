@@ -6,15 +6,15 @@ An iOS-style "liquid glass" monthly calendar module for MagicMirror with ICS/MyA
 - ICS via node_helper (RRULE aware) plus optional Calendar/MyAgenda/AmbientWeather payloads.
 - Full-day + timed events with keyword icon mapping (Font Awesome, Boxicons, Iconoir SVGs, Iconify).
 - Per-calendar visibility toggles, fuzzy dedupe across sources, and heatmap overlay.
-- Auto themes (dark/light/autoSun), contrast-aware icons, and adjustable day backgrounds by date or calendar+keyword rules.
-- Optional weather row and agenda preview chips; renders all events (no overflow truncation).
+- Themes: `dark`, `light`, `auto` (follows the OS/browser `prefers-color-scheme`, evaluated once at render time), `autoSun` (follows MMM-GlassClock's real sunrise/sunset page theme). Contrast-aware icons, adjustable day backgrounds by date or calendar+keyword rules.
+- Optional weather row and agenda preview chips; overflow events beyond `maxEventsPerDay` collapse into a "+N more" row by default.
 
 ## Requirements
 - MagicMirror.
 - Local assets:
   - `lib/boxicons/boxicons.min.css` and fonts in `lib/boxicons/fonts/`.
   - `lib/iconoir/` with `iconoir.css` or SVGs (recommended: SVGs as shipped in this repo); reference Iconoir icons by filename without extension.
-  - Font Awesome loaded via CDN (default) unless you restore local fonts.
+  - Font Awesome is loaded locally from `node_modules/@fortawesome/fontawesome-free` (run `npm install` in this module's folder) — not from a CDN.
 
 ## Installation
 ```bash
@@ -24,7 +24,7 @@ cd MMM-GlassCalendar
 npm install
 ```
 
-Ensure the `lib/` assets above are present. If running offline, host Font Awesome locally and update `MMM-GlassCalendar.js` styles array accordingly.
+Ensure the `lib/` assets above are present and `npm install` has fetched `@fortawesome/fontawesome-free`.
 
 ## Configuration
 In `config/config.js`:
@@ -36,6 +36,9 @@ In `config/config.js`:
     header: "Monthly Calendar",
     locale: "en",
     firstDayOfWeek: 0,
+    monthOffset: 0,               // 0 = current month, 1 = next month, -1 = previous, etc.
+                                   // run a second instance with a different offset/identifier
+                                   // to show two months side by side
 
     // Sources
     useCalendarModule: false,
@@ -46,9 +49,9 @@ In `config/config.js`:
     ],
 
     // Visuals
-    theme: "autoSun",            // "dark" | "light" | "auto" | "autoSun"
-    sunriseHour: 7,
-    sunsetHour: 19,
+    theme: "autoSun",            // "dark" | "light" | "auto" (OS prefers-color-scheme) | "autoSun" (page sunrise/sunset)
+    sunriseHour: 7,               // fallback only, see note below
+    sunsetHour: 19,               // fallback only, see note below
     heatmapEnabled: true,
     heatmapMaxEvents: 6,
     showWeekNumbers: false,
@@ -58,8 +61,8 @@ In `config/config.js`:
     reduceMotion: false,         // true disables marquee/heatmap on Pi or reduced-motion
 
     // Events
-    maxEventsPerDay: 6,
-    showOverflowIndicator: false, // all events are shown by default
+    maxEventsPerDay: 6,           // default is 3; the Pi performance profile caps it at 2
+    showOverflowIndicator: false, // default true: shows "+N more" for events past maxEventsPerDay
     eventIcons: {
       birthday: { type: "fa", icon: "fa-solid fa-cake-candles" },
       flight:   { type: "box", icon: "bx bx-plane-alt" },
@@ -81,7 +84,8 @@ In `config/config.js`:
     maxAgendaPreviewItems: 4,
     showWeatherRow: true,
     updateInterval: 15 * 60 * 1000,
-    animationSpeed: 400
+    animationSpeed: 400,
+    marqueeSpeed: 20               // px/s scroll speed for event titles too long to fit
   }
 }
 ```
@@ -102,6 +106,20 @@ In `config/config.js`:
 - `reduceMotion`: Force-disable marquee/heatmap motion even on non-Pi devices (also triggered by `prefers-reduced-motion`).
 - `maxEventsPerDay` + `showOverflowIndicator`: lowering the cap reduces DOM nodes on low-power devices.
 
+### Theme modes
+- `"auto"` follows the OS/browser `prefers-color-scheme` media query, checked once when the card renders (there's no live listener for a mid-session OS theme change). Electron on Raspberry Pi OS usually reports `light` unless the system is explicitly set to dark mode.
+- `"autoSun"` (see below) is unrelated to `"auto"` — it derives day/night from real sunrise/sunset instead of the OS setting, and is the default.
+
+### Page theme sync (autoSun)
+- With `theme: "autoSun"`, the card first checks `<body>` for `mm-day` / `mm-night`, set by MMM-GlassClock from real sunrise/sunset for the current date. This keeps the card's light/dark state identical to the rest of the page.
+- `sunriseHour` / `sunsetHour` (and the weather-summary sunrise/sunset hours) are only used as a fallback when neither body class is present (e.g. MMM-GlassClock isn't installed or `themeClass` is disabled there).
+- The card listens for MMM-GlassClock's `PAGE_THEME_CHANGED` notification and re-renders (via `queueDomUpdate`, respecting the performance debounce) so it flips at the same moment as the page.
+
+### Fetch errors
+- **"Calendar unavailable"** appears only while the card has never successfully loaded (`!loaded`, i.e. before its first `GLASSCALENDAR_EVENTS`) and at least one source has already errored. It's a loading-time state, not a summary of the final result — once the first fetch cycle completes, the header always switches to "Updated ..." or the "N of M" count below, even if every source failed.
+- **"N of M calendars failed"** (warning-colored) appears once the card has loaded and any source has errored on this or a later cycle, replacing "Updated ...". `M` counts expanded URLs (a single configured source with an array `url: [...]` is fetched once per URL by node_helper, and each can fail independently), not the number of entries in `icalSources`.
+- The node_helper never sends the raw ICS URL to the front end on error — only the source `name` (or a token-masked URL if no name is set) — since private ICS URLs grant calendar read access.
+
 ## Timezone handling
 - ICS parsing applies calendar timezones to recurring and floating events, preventing early/late shifts across calendars.
 - Set `timeZone` plus `forceTimeZone: true` on a source to pin floating times (DTSTART without TZ) and render times in that zone even if the host timezone differs.
@@ -117,7 +135,7 @@ In `config/config.js`:
 - Legend uses brighter text with a subtle shadow for readability.
 
 ## Release Checklist (manual)
-1. Verify assets present (`lib/boxicons`, `lib/iconoir` SVGs, Font Awesome CDN/local).
+1. Verify assets present (`lib/boxicons`, `lib/iconoir` SVGs, `node_modules/@fortawesome/fontawesome-free`).
 2. Run a quick MagicMirror load to ensure no console errors.
 3. Update version in `package.json` (and `package-lock.json` if used): `npm version <new>` (skip git tagging if undesired).
 4. Commit changes, tag release: `git tag vX.Y.Z`.

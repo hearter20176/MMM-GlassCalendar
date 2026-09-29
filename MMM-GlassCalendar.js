@@ -121,6 +121,7 @@ Module.register("MMM-GlassCalendar", {
 
     Log.info(`[${this.name}] starting`);
     this.loaded = false;
+    this.fetchErrors = [];
     this.monthEvents = [];
     this.weatherSummary = null;
     this.myAgendaPreview = [];
@@ -170,6 +171,10 @@ Module.register("MMM-GlassCalendar", {
         ? this.config.monthOffset
         : parseInt(this.config.monthOffset, 10) || 0;
 
+    // Errors accumulate per fetch cycle: reset before kicking off a new one
+    // so a stale failure count doesn't linger after a source recovers.
+    this.fetchErrors = [];
+
     this.sendSocketNotification("GLASSCALENDAR_FETCH", {
       identifier: this.identifier,
       icalSources: this.config.icalSources,
@@ -196,6 +201,10 @@ Module.register("MMM-GlassCalendar", {
 
     if (notification === "MYAGENDA_EVENTS" && this.config.useMyAgenda) {
       this.handleMyAgendaEvents(payload || []);
+    }
+
+    if (notification === "PAGE_THEME_CHANGED" && this.config.theme === "autoSun") {
+      this.queueDomUpdate(this.config.animationSpeed);
     }
   },
 
@@ -226,7 +235,15 @@ Module.register("MMM-GlassCalendar", {
       if (payload && payload.identifier && payload.identifier !== this.identifier) {
         return;
       }
-      Log.error(`[${this.name}] node_helper error`, payload);
+      // payload.url is already masked/name-only by node_helper; never log
+      // the full payload in case that guarantee changes upstream.
+      Log.error(`[${this.name}] node_helper error for ${(payload && payload.url) || "a calendar"}: ${payload && payload.message}`);
+      this.fetchErrors = this.fetchErrors || [];
+      this.fetchErrors.push({
+        source: (payload && payload.url) || "calendar",
+        message: payload && payload.message
+      });
+      this.queueDomUpdate(this.config.animationSpeed);
     }
   },
 
@@ -439,6 +456,19 @@ Module.register("MMM-GlassCalendar", {
   // ---------------------------------------------------------------------------
   // Header / weather / agenda
   // ---------------------------------------------------------------------------
+  // Mirrors node_helper's expandSources: a configured source with an array
+  // `url` is fetched (and can fail) once per URL, so the "N of M failed"
+  // denominator must count expanded URLs, not configured entries, or a
+  // single 2-URL source can misreport as "2 of 1".
+  countConfiguredSources(icalSources) {
+    if (!Array.isArray(icalSources)) return 0;
+    return icalSources.reduce((sum, source) => {
+      if (!source) return sum;
+      if (Array.isArray(source.url)) return sum + source.url.filter(Boolean).length;
+      return sum + (source.url ? 1 : 0);
+    }, 0);
+  },
+
   renderHeader() {
     const header = document.createElement("div");
     header.className = "glass-cal-header";
@@ -447,32 +477,46 @@ Module.register("MMM-GlassCalendar", {
 
     const titleSpan = document.createElement("span");
     titleSpan.className = "glass-cal-title";
-    const bullet =
-      '<span class="glass-separator" aria-hidden="true">&bull;</span>';
-    titleSpan.innerHTML =
-      (this.config.header || "") +
-      (this.config.header ? " " + bullet + " " : "") +
-      monthMoment.format("MMMM YYYY");
+    titleSpan.appendChild(document.createTextNode(this.config.header || ""));
+    if (this.config.header) {
+      const bullet = document.createElement("span");
+      bullet.className = "glass-separator";
+      bullet.setAttribute("aria-hidden", "true");
+      bullet.textContent = " • ";
+      titleSpan.appendChild(bullet);
+    }
+    titleSpan.appendChild(document.createTextNode(monthMoment.format("MMMM YYYY")));
 
     const metaSpan = document.createElement("span");
     metaSpan.className = "glass-cal-meta";
 
-    if (
-      !this.loaded &&
-      this.config.icalSources &&
-      this.config.icalSources.length > 0
-    ) {
+    const totalSources = this.countConfiguredSources(this.config.icalSources);
+    const hasSources = totalSources > 0;
+    const errorCount = (this.fetchErrors && this.fetchErrors.length) || 0;
+
+    if (!this.loaded && hasSources && errorCount === 0) {
       const spin = document.createElement("span");
       spin.className = "glass-spinner";
       metaSpan.appendChild(spin);
       const txt = document.createElement("span");
       txt.className = "loading-text";
-      txt.innerText = "Loading calendars...";
+      txt.textContent = "Loading calendars...";
       metaSpan.appendChild(txt);
+    } else if (!this.loaded && hasSources && errorCount > 0) {
+      // Every source has failed and there's nothing cached yet: say so
+      // instead of leaving the card looking like an empty, event-free month.
+      metaSpan.classList.add("glass-cal-meta-warning");
+      metaSpan.textContent = "Calendar unavailable";
+    } else if (errorCount > 0) {
+      metaSpan.classList.add("glass-cal-meta-warning");
+      metaSpan.textContent =
+        totalSources > 0
+          ? `${errorCount} of ${totalSources} calendar${totalSources === 1 ? "" : "s"} failed`
+          : `${errorCount} calendar${errorCount === 1 ? "" : "s"} failed`;
     } else if (this.lastFetch) {
-      metaSpan.innerHTML = "Updated " + moment(this.lastFetch).fromNow();
+      metaSpan.textContent = "Updated " + moment(this.lastFetch).fromNow();
     } else {
-      metaSpan.innerHTML = "";
+      metaSpan.textContent = "";
     }
 
     header.appendChild(titleSpan);
@@ -497,13 +541,15 @@ Module.register("MMM-GlassCalendar", {
       const aqi = this.weatherSummary.aqi;
       const uv = this.weatherSummary.uv;
       const parts = [];
-      if (typeof t !== "undefined") parts.push(Math.round(t) + "&deg;");
+      if (typeof t !== "undefined") parts.push(Math.round(t) + "°");
       if (cond) parts.push(cond);
       if (typeof aqi !== "undefined") parts.push("AQI " + aqi);
       if (typeof uv !== "undefined") parts.push("UV " + uv);
-      textSpan.innerHTML = parts.join(" &bull; ");
+      // cond comes from another module's payload (e.g. weather.gov via
+      // MMM-AmbientWeather) and is untrusted; textContent keeps it inert.
+      textSpan.textContent = parts.join(" • ");
     } else {
-      textSpan.innerHTML = "Weather unavailable";
+      textSpan.textContent = "Weather unavailable";
     }
 
     row.appendChild(iconSpan);
@@ -525,19 +571,21 @@ Module.register("MMM-GlassCalendar", {
 
       const titleSpan = document.createElement("span");
       titleSpan.className = "agenda-title";
-      titleSpan.innerHTML = ev.title || "(no title)";
+      // ev.title may come straight from MMM-MyAgenda / a synced calendar;
+      // treat it as untrusted and never parse it as HTML.
+      titleSpan.textContent = ev.title || "(no title)";
 
       const timeSpan = document.createElement("span");
       timeSpan.className = "agenda-time";
 
       if (ev.allDay) {
-        timeSpan.innerHTML = "All day";
+        timeSpan.textContent = "All day";
       } else if (ev.startDate) {
         let t = ev.startDate.format("LT");
         if (ev.endDate && !ev.endDate.isSame(ev.startDate, "minute")) {
           t += " – " + ev.endDate.format("LT");
         }
-        timeSpan.innerHTML = t;
+        timeSpan.textContent = t;
       }
 
       item.appendChild(dot);
@@ -577,7 +625,9 @@ Module.register("MMM-GlassCalendar", {
       swatch.style.backgroundColor = colors[name];
 
       const label = document.createElement("span");
-      label.innerHTML = name;
+      // name is a calendar name from config or a MyAgenda/AmbientWeather
+      // payload; keep it as plain text.
+      label.textContent = name;
 
       item.appendChild(swatch);
       item.appendChild(label);
@@ -638,7 +688,7 @@ Module.register("MMM-GlassCalendar", {
     dayNames.forEach((name) => {
       const cell = document.createElement("div");
       cell.className = "glass-cal-cell glass-cal-dow-cell";
-      cell.innerHTML = name;
+      cell.textContent = name;
       dowRow.appendChild(cell);
     });
 
@@ -652,7 +702,7 @@ Module.register("MMM-GlassCalendar", {
       if (this.config.showWeekNumbers) {
         const weekCell = document.createElement("div");
         weekCell.className = "glass-cal-cell glass-cal-weeknum";
-        weekCell.innerHTML = current.isoWeek();
+        weekCell.textContent = current.isoWeek();
         row.appendChild(weekCell);
       }
 
@@ -706,7 +756,7 @@ Module.register("MMM-GlassCalendar", {
 
     const dayNum = document.createElement("div");
     dayNum.className = "glass-cal-daynum";
-    dayNum.innerHTML = date.date();
+    dayNum.textContent = date.date();
     cell.appendChild(dayNum);
 
     const eventsWrap = document.createElement("div");
@@ -775,13 +825,20 @@ Module.register("MMM-GlassCalendar", {
         timeStr += " - " + ev.endDate.format("LT");
       }
 
-      const fullText = `${timeStr} &bull; ${title}`;
+      const fullText = `${timeStr} • ${title}`;
 
       const allowMarquee = this.performanceTuning.allowMarquee;
       if (allowMarquee && fullText.length > 18) {
         label.appendChild(this.buildMarquee(fullText));
       } else {
-        label.innerHTML = fullText;
+        // title is untrusted ICS/agenda data; build the row from separate
+        // nodes so it can never be parsed as HTML.
+        label.appendChild(document.createTextNode(timeStr));
+        const sep = document.createElement("span");
+        sep.className = "glass-separator";
+        sep.textContent = " • ";
+        label.appendChild(sep);
+        label.appendChild(document.createTextNode(title));
       }
 
       evItem.appendChild(label);
@@ -807,7 +864,8 @@ Module.register("MMM-GlassCalendar", {
     track.className = "glass-marquee-track";
 
     const primary = document.createElement("span");
-    primary.innerHTML = text;
+    // text is derived from untrusted ICS event titles; never parse as HTML.
+    primary.textContent = text;
 
     track.appendChild(primary);
     marquee.appendChild(track);
@@ -854,13 +912,6 @@ Module.register("MMM-GlassCalendar", {
     this._marqueeObserver = observer;
   },
 
-  getMarqueeDuration(text) {
-    if (!text) return null;
-    const len = text.length;
-    const seconds = Math.max(14, Math.min(30, len * 0.28));
-    return Number.isFinite(seconds) ? parseFloat(seconds.toFixed(2)) : null;
-  },
-
   getDayBackgroundForDate(dateKey, eventsForDay) {
     if (this.config.dayBackgrounds && this.config.dayBackgrounds[dateKey]) {
       return this.config.dayBackgrounds[dateKey];
@@ -892,7 +943,14 @@ Module.register("MMM-GlassCalendar", {
 
   normalizeImageUrl(input) {
     if (!input) return null;
-    const val = input.toString().trim();
+    // Accept both the documented url('...') form and a bare path/URL: strip
+    // a leading url(...) wrapper before resolving, since the caller always
+    // re-wraps the result in url('...') itself.
+    const unwrapped = input
+      .toString()
+      .trim()
+      .replace(/^url\((['"]?)([\s\S]*)\1\)$/i, "$2");
+    const val = unwrapped.trim();
     const lower = val.toLowerCase();
     const isAbs =
       lower.startsWith("http://") ||
@@ -1035,7 +1093,7 @@ Module.register("MMM-GlassCalendar", {
     if (str.startsWith("rgb")) {
       const nums = str
         .replace(/[rgba()]/g, " ")
-        .split(/[,\\s]+/)
+        .split(/[\s,/]+/)
         .filter(Boolean)
         .slice(0, 3)
         .map((n) => parseInt(n, 10));
@@ -1197,10 +1255,28 @@ Module.register("MMM-GlassCalendar", {
   // Theme helpers
   // ---------------------------------------------------------------------------
   determineThemeAuto() {
+    // "auto" defers to the OS/browser color-scheme preference, distinct from
+    // "autoSun" which derives day/night from real sunrise/sunset.
+    if (
+      typeof window !== "undefined" &&
+      window.matchMedia &&
+      window.matchMedia("(prefers-color-scheme: light)").matches
+    ) {
+      return "light";
+    }
     return "dark";
   },
 
   determineThemeSun() {
+    // Prefer the page-wide theme set by MMM-GlassClock (mm-day / mm-night on
+    // <body>), which is computed from real sunrise/sunset for the current
+    // calendar date. This keeps the card in lockstep with the rest of the
+    // page instead of drifting from a separate whole-hour estimate.
+    if (typeof document !== "undefined" && document.body) {
+      if (document.body.classList.contains("mm-day")) return "light";
+      if (document.body.classList.contains("mm-night")) return "dark";
+    }
+
     let sunrise = this.config.sunriseHour;
     let sunset = this.config.sunsetHour;
 

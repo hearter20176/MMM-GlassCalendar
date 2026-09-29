@@ -113,11 +113,14 @@ module.exports = NodeHelper.create({
   },
 
   async fetchCalendars(payload) {
+    // Declared above the try so the catch block can reference them without
+    // throwing a ReferenceError (they're only assigned inside the try).
+    const identifier = payload && payload.identifier;
+    let monthOffset = 0;
     try {
-      const identifier = payload && payload.identifier;
       const icalSources = (payload && payload.icalSources) || [];
       const rawOffset = payload && payload.monthOffset;
-      const monthOffset = Number.isFinite(Number(rawOffset))
+      monthOffset = Number.isFinite(Number(rawOffset))
         ? Number(rawOffset)
         : 0;
 
@@ -140,7 +143,9 @@ module.exports = NodeHelper.create({
           this.sendSocketNotification("GLASSCALENDAR_ERROR", {
             identifier,
             monthOffset,
-            url: source.url,
+            // Never send the raw URL to the front end (it may embed a
+            // private Google ICS token); mask it or fall back to the name.
+            url: source.name || maskUrl(source.url),
             message: errText(err)
           });
         }

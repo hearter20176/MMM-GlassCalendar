@@ -60,7 +60,7 @@
   background: linear-gradient(120deg, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.35));
   rotate: 8deg;
   translate: -60% 0;
-  animation: glass-shimmer 24s linear infinite;
+  animation: glass-cal-shimmer 24s linear infinite;
   opacity: 0.32;
   pointer-events: none;
   will-change: translate, opacity;
@@ -101,16 +101,16 @@
   filter: blur(38px);
   opacity: 0.45;
   pointer-events: none;
-  animation: floatFade 18s ease-in-out infinite alternate;
+  animation: glass-cal-float 18s ease-in-out infinite alternate;
   will-change: transform, opacity;
 }
 
-@keyframes floatFade {
+@keyframes glass-cal-float {
   0% { transform: translate3d(0, 0, 0) scale(1); opacity: 0.55; }
   100% { transform: translate3d(8px, -6px, 0) scale(1.05); opacity: 0.38; }
 }
 
-@keyframes glass-shimmer {
+@keyframes glass-cal-shimmer {
   0%   { translate: -60% 0; opacity: 0.32; }
   50%  { translate: 30% 0;  opacity: 0.18; }
   100% { translate: 120% 0; opacity: 0.32; }
@@ -145,7 +145,17 @@
 }
 
 .glass-cal-meta .loading-text {
-  color: rgba(233, 237, 245, 0.85);
+  color: var(--glass-ink);
+}
+
+.glass-cal-meta.glass-cal-meta-warning {
+  color: #f59e0b;
+}
+
+/* #f59e0b on the light card's surface is ~2.00:1 (fails WCAG AA); #b45309
+   measures ~4.68:1 on that surface while staying on-brand amber. */
+.glass-calendar-card.glass-theme-light .glass-cal-meta.glass-cal-meta-warning {
+  color: #b45309;
 }
 
 .glass-separator {
@@ -157,10 +167,11 @@
   display: inline-block;
   width: 12px;
   height: 12px;
-  border: 2px solid rgba(255, 255, 255, 0.26);
-  border-top-color: rgba(255, 255, 255, 0.9);
+  border: 2px solid color-mix(in srgb, currentColor 25%, transparent);
+  border-top-color: currentColor;
   border-radius: 50%;
   animation: glass-spin 0.7s linear infinite;
+  color: var(--glass-ink);
 }
 
 @keyframes glass-spin {
@@ -306,9 +317,6 @@
   overflow: hidden;
   isolation: isolate;
   background-color: var(--glass-surface);
-}
-
-.glass-cal-day {
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
@@ -413,6 +421,21 @@
   min-width: 0;
 }
 
+/* Marquee: long titles scroll via Web Animations in _startMarquees(); each title loops
+   on its own. The resets below also neutralise older marquee rules (continuous CSS
+   animation, zero-width inline-size containment) still present in css/custom.css.
+   Defined here (lower specificity first) so it precedes
+   .glass-full-day > .glass-marquee below, keeping specificity non-descending. */
+.glass-marquee {
+  position: relative;
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  contain: none;
+  container-type: normal;
+}
+
 /* Full day block */
 .glass-full-day {
   display: flex;
@@ -434,7 +457,7 @@
 }
 
 /* More indicator */
-.glass-cal-event-more {
+.glass-cal-overflow {
   margin-top: 1px;
   font-size: 0.64rem;
   color: var(--glass-muted);
@@ -509,19 +532,6 @@ iconify-icon.glass-event-icon {
   font-size: 1em;
   line-height: 1;
   vertical-align: -0.05em;
-}
-
-/* Marquee: long titles scroll via Web Animations in _startMarquees(); each title loops
-   on its own. The resets below also neutralise older marquee rules (continuous CSS
-   animation, zero-width inline-size containment) still present in css/custom.css. */
-.glass-marquee {
-  position: relative;
-  display: block;
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  contain: none;
-  container-type: normal;
 }
 
 .glass-marquee-track {
