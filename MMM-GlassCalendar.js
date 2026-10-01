@@ -128,6 +128,10 @@ Module.register("MMM-GlassCalendar", {
     this.lastFetch = null;
     this.hiddenCalendars = new Set();
     this.domUpdateTimer = null;
+    this.marqueeAnims = []; // every live title-marquee Web Animation: { anim, track, gen }
+    this.renderGen = 0; // bumped on every getDom(); invalidates the poll timer of older renders
+    this.animTimer = null;
+    this.suspended = false;
     this.performanceProfile = this.resolvePerformanceProfile();
     this.performanceTuning = {
       domUpdateDebounce: this.performanceProfile === "pi" ? 700 : 0,
@@ -206,6 +210,23 @@ Module.register("MMM-GlassCalendar", {
     if (notification === "PAGE_THEME_CHANGED" && this.config.theme === "autoSun") {
       this.queueDomUpdate(this.config.animationSpeed);
     }
+
+    // MagicMirror sends this to the module after every updateDom() resolves (swapped or
+    // skipped), so it is the deterministic moment to reap the animations of the outgoing tree.
+    // The bounded poll in _startAnimations() is only a fallback.
+    if (notification === "MODULE_DOM_UPDATED") this._startAnimations();
+  },
+
+  // Called by MagicMirror when the module is hidden (e.g. MMM-pages rotation). MM hides with
+  // opacity 0, so the tree stays laid out and composited: pause everything this module animates.
+  suspend() {
+    this.suspended = true;
+    this._pauseAnimations();
+  },
+
+  resume() {
+    this.suspended = false;
+    this._startAnimations();
   },
 
   socketNotificationReceived(notification, payload) {
@@ -449,7 +470,12 @@ Module.register("MMM-GlassCalendar", {
     card.appendChild(this.renderLegend());
 
     wrapper.appendChild(card);
-    this._startMarquees(wrapper);
+    try {
+      this._beginRender();
+      this._startMarquees(wrapper);
+    } catch (err) {
+      Log.warn(`[${this.name}] Failed to set up title marquees:`, err);
+    }
     return wrapper;
   },
 
@@ -872,13 +898,106 @@ Module.register("MMM-GlassCalendar", {
     return marquee;
   },
 
+  // ---- Marquee animation lifecycle ------------------------------------------------------
+  //
+  // getDom() builds a brand-new tree on every render while MagicMirror keeps the previous one
+  // attached for the fade-out, and MagicMirror may skip the swap entirely when the markup is
+  // identical. A running Web Animation keeps its detached target (and the whole old render tree)
+  // alive, so animations are NOT cancelled in getDom() (a skipped swap would freeze the visible
+  // titles); they are cancelled once their track is actually detached, in
+  // _reapDetachedAnimations(). this.marqueeAnims holds { anim, track, gen } for every live
+  // animation. renderGen invalidates the fallback poll of older renders.
+
+  _clearAnimTimer() {
+    if (this.animTimer) {
+      clearTimeout(this.animTimer);
+      this.animTimer = null;
+    }
+  },
+
+  _cancelMarquee(entry) {
+    try {
+      entry.anim.cancel();
+    } catch (err) {
+      Log.warn(`[${this.name}] Failed to cancel marquee animation:`, err);
+    }
+    if (entry.track._marqueeAnim === entry.anim) entry.track._marqueeAnim = null;
+  },
+
+  // Cancels marquee animations whose track is no longer in the document (the swapped-out tree).
+  _reapDetachedAnimations() {
+    this.marqueeAnims = (this.marqueeAnims || []).filter((entry) => {
+      if (entry.track.isConnected) return true;
+      this._cancelMarquee(entry);
+      return false;
+    });
+  },
+
+  // Starts a new render generation: drops the previous poll timer. Live animations are left alone.
+  _beginRender() {
+    this.renderGen = (this.renderGen || 0) + 1;
+    this._clearAnimTimer();
+  },
+
+  // Reaps detached marquees and plays the survivors unless the module is suspended. While an
+  // older render's animations are still on screen (swap pending, skipped or dropped) a short,
+  // bounded poll waits for their tree to be swapped out.
+  _startAnimations(attempts = 50) {
+    this._clearAnimTimer();
+    this._reapDetachedAnimations();
+    // MM sets hidden=false when a show starts but calls resume() only when its fade ends; a
+    // data render inside that window clears MM's shared timer and resume() never comes. A
+    // module that MM reports visible is not suspended.
+    if (this.suspended && this.hidden === false) this.suspended = false;
+    this._syncPausedClass();
+    if (this.suspended) return;
+    this.marqueeAnims.forEach((entry) => {
+      if (typeof entry.anim.play === "function") entry.anim.play();
+    });
+    const gen = this.renderGen;
+    const staleLeft = this.marqueeAnims.some((entry) => entry.gen !== gen);
+    if (staleLeft && attempts > 0) {
+      this.animTimer = setTimeout(() => {
+        this.animTimer = null;
+        if (gen !== this.renderGen) return;
+        this._startAnimations(attempts - 1);
+      }, 100);
+    }
+  },
+
+  _pauseAnimations() {
+    this._clearAnimTimer();
+    this._syncPausedClass();
+    (this.marqueeAnims || []).forEach((entry) => {
+      if (typeof entry.anim.pause === "function") entry.anim.pause();
+    });
+  },
+
+  // Mirrors the suspended state onto the module wrapper so the infinite CSS animations on the
+  // card (shimmer/float/spinner) pause while hidden. The wrapper survives content swaps.
+  _syncPausedClass() {
+    try {
+      const el = typeof document !== "undefined" && document.getElementById
+        ? document.getElementById(this.identifier)
+        : null;
+      if (el && el.classList) el.classList.toggle("glass-calendar-suspended", !!this.suspended);
+    } catch (err) {
+      // cosmetic only
+    }
+  },
+
   // Scroll each overflowing title on its own loop: hold, scroll at marqueeSpeed px/s,
   // hold, repeat. Each loop starts at a random point so titles don't move in lockstep,
   // and titles that fit stay still. A ResizeObserver measures once a title is actually
-  // laid out (modules on hidden pages have no size) and re-measures on changes.
+  // laid out (modules on hidden pages have no size) and re-measures on changes. The observer
+  // is disconnected on the next render, so at most the current and previous tree are retained.
   _startMarquees(root) {
+    if (this._marqueeObserver) {
+      this._marqueeObserver.disconnect();
+      this._marqueeObserver = null;
+    }
     if (typeof ResizeObserver === "undefined") return;
-    if (this._marqueeObserver) this._marqueeObserver.disconnect();
+    const gen = this.renderGen;
     const speed = Number(this.config.marqueeSpeed) > 0 ? Number(this.config.marqueeSpeed) : 20;
     const holdStartMs = 2500;
     const holdEndMs = 2000;
@@ -888,9 +1007,18 @@ Module.register("MMM-GlassCalendar", {
         const track = box.querySelector(".glass-marquee-track");
         if (!track) continue;
         if (track._marqueeAnim) {
-          track._marqueeAnim.cancel();
-          track._marqueeAnim = null;
+          const old = track._marqueeAnim;
+          const prior = (this.marqueeAnims || []).find((e) => e.anim === old);
+          if (prior) {
+            this.marqueeAnims = this.marqueeAnims.filter((e) => e !== prior);
+            this._cancelMarquee(prior);
+          } else {
+            old.cancel();
+            track._marqueeAnim = null;
+          }
         }
+        // Never start an animation on an element that is already detached.
+        if (!track.isConnected) continue;
         const distance = track.scrollWidth - box.clientWidth;
         if (box.clientWidth === 0 || distance <= 2) continue;
         const moveMs = (distance / speed) * 1000;
@@ -905,11 +1033,17 @@ Module.register("MMM-GlassCalendar", {
           { duration: total, iterations: Infinity }
         );
         anim.currentTime = Math.random() * total;
+        // Created while the module is hidden: stay paused until resume().
+        if (this.suspended && this.hidden !== false && typeof anim.pause === "function") anim.pause();
         track._marqueeAnim = anim;
+        this.marqueeAnims = this.marqueeAnims || [];
+        this.marqueeAnims.push({ anim, track, gen });
       }
     });
     root.querySelectorAll(".glass-marquee").forEach((box) => observer.observe(box));
     this._marqueeObserver = observer;
+    // Older renders' animations still on screen are reaped once their tree is swapped out.
+    if ((this.marqueeAnims || []).length && !this.suspended) this._startAnimations();
   },
 
   getDayBackgroundForDate(dateKey, eventsForDay) {

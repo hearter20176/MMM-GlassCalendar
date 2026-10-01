@@ -562,3 +562,11 @@ iconify-icon.glass-event-icon {
     padding: 5px 4px 3px;
   }
 }
+
+/* Hidden pages (MM hides with opacity 0, so the card is still composited): pause the infinite
+   card animations. Class is toggled on the module wrapper by suspend()/resume(). */
+.glass-calendar-suspended .glass-calendar-card::before,
+.glass-calendar-suspended .glass-calendar-card::after,
+.glass-calendar-suspended .glass-spinner {
+  animation-play-state: paused;
+}

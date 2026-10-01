@@ -120,6 +120,10 @@ In `config/config.js`:
 - **"N of M calendars failed"** (warning-colored) appears once the card has loaded and any source has errored on this or a later cycle, replacing "Updated ...". `M` counts expanded URLs (a single configured source with an array `url: [...]` is fetched once per URL by node_helper, and each can fail independently), not the number of entries in `icalSources`.
 - The node_helper never sends the raw ICS URL to the front end on error — only the source `name` (or a token-masked URL if no name is set) — since private ICS URLs grant calendar read access.
 
+## Animation lifecycle
+- Long event titles scroll with Web Animations on a per-title loop. Every animation is tracked with its title element; when MagicMirror swaps the old render out (`MODULE_DOM_UPDATED`, with a short bounded poll as fallback) the animations of the detached tree are cancelled so old render trees are never retained. Animations are never cancelled while their tree is still on screen, including when MagicMirror skips an identical re-render.
+- `suspend()` (page hidden by MMM-pages) pauses the marquees and the card CSS animations; `resume()` plays them. Animations created while hidden start paused. State is per module instance, so several calendars can run at once.
+
 ## Timezone handling
 - ICS parsing applies calendar timezones to recurring and floating events, preventing early/late shifts across calendars.
 - Set `timeZone` plus `forceTimeZone: true` on a source to pin floating times (DTSTART without TZ) and render times in that zone even if the host timezone differs.
