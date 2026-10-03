@@ -2,6 +2,12 @@
 
 An iOS-style "liquid glass" monthly calendar module for MagicMirror with ICS/MyAgenda/Calendar support, fuzzy dedupe, heatmap, weather/agenda preview, rich icon mapping, and per-day backgrounds.
 
+## Screenshot
+
+![MMM-GlassCalendar month view in the night theme](docs/screenshot.png)
+
+*Month view in the night theme, with sample events from four calendars, the weather row and the calendar legend.*
+
 ## Highlights
 - ICS via node_helper (RRULE aware) plus optional Calendar/MyAgenda/AmbientWeather payloads.
 - Full-day + timed events with keyword icon mapping (Font Awesome, Boxicons, Iconoir SVGs, Iconify).
@@ -19,7 +25,7 @@ An iOS-style "liquid glass" monthly calendar module for MagicMirror with ICS/MyA
 ## Installation
 ```bash
 cd ~/MagicMirror/modules
-git clone https://github.com/your-user/MMM-GlassCalendar.git
+git clone https://github.com/hearter20176/MMM-GlassCalendar.git
 cd MMM-GlassCalendar
 npm install
 ```
@@ -89,6 +95,41 @@ In `config/config.js`:
   }
 }
 ```
+
+### Options
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `header` | string | `"Monthly Calendar"` | Title shown at the top of the card, followed by the month and year. |
+| `locale` | string | `"en"` | Moment.js locale for month, weekday and time text. |
+| `firstDayOfWeek` | number | `0` | First column of the grid: `0` = Sunday, `1` = Monday. |
+| `monthOffset` | number | `0` | Month to show relative to the current one (`1` = next month, `-1` = previous). Run a second instance with a different offset to show two months. |
+| `useCalendarModule` | boolean | `false` | Also take events from MagicMirror's default calendar module (`CALENDAR_EVENTS`). |
+| `useMyAgenda` | boolean | `true` | Also take events from MMM-MyAgenda (`MYAGENDA_EVENTS`). |
+| `useAmbientWeather` | boolean | `true` | Use MMM-AmbientWeather's `AMBIENT_WEATHER_DATA` for the weather row and the `autoSun` fallback. |
+| `icalSources` | array | `[]` | ICS feeds fetched by the node helper. Each entry: `url` (string, or an array of URLs fetched separately), `name`, `color`, and optionally `timeZone` with `forceTimeZone: true` (see Timezone handling). |
+| `highlightToday` | boolean | `true` | Outline today's cell. |
+| `dimPastDays` | boolean | `true` | Dim days before today. |
+| `showWeekNumbers` | boolean | `false` | Add an ISO week-number column. |
+| `maxEventsPerDay` | number | `3` | Events listed per day cell (the `pi` profile caps this at 2). |
+| `showOverflowIndicator` | boolean | `true` | Show "+N more" for events past `maxEventsPerDay`. |
+| `showAgendaPreview` | boolean | `true` | Show upcoming MMM-MyAgenda items as chips under the grid. |
+| `maxAgendaPreviewItems` | number | `4` | Number of agenda preview chips. |
+| `showWeatherRow` | boolean | `true` | Show the current-conditions chip above the grid. |
+| `heatmapEnabled` | boolean | `true` | Tint each day by how busy it is. |
+| `heatmapMaxEvents` | number | `6` | Event count that gives the full heatmap tint. |
+| `heatmapColor` | string | `"#38bdf8"` | Heatmap tint colour. |
+| `dayBackgrounds` | object | `{}` | Map of `YYYY-MM-DD` to an image (see Day backgrounds). |
+| `dayBackgroundRules` | array | `[]` | Calendar/keyword rules that set a day's background image (see Day backgrounds). |
+| `eventIcons` | object | `{}` | Keyword to icon map (see Icon types). |
+| `calendarVisibility` | object | `{}` | Map of calendar name to `true`/`false`; `false` hides that calendar. |
+| `theme` | string | `"autoSun"` | `"dark"`, `"light"`, `"auto"` (OS `prefers-color-scheme`) or `"autoSun"` (follows MMM-GlassClock's day/night page theme). |
+| `sunriseHour` / `sunsetHour` | number | `7` / `19` | Whole-hour fallback for `autoSun` when no page theme class is present. |
+| `marqueeSpeed` | number | `20` | Scroll speed in px/s for event titles too long to fit. |
+| `performanceProfile` | string | `"auto"` | `"auto"` (detects Pi/ARM), `"pi"` (low motion, debounced redraws, capped events) or `"full"`. |
+| `reduceMotion` | boolean | `false` | Disable marquee and heatmap motion (also follows `prefers-reduced-motion`). |
+| `updateInterval` | number | `900000` | ICS refresh interval in ms (15 minutes). |
+| `animationSpeed` | number | `400` | DOM update fade in ms. |
 
 ### Icon types
 - `fa`: Font Awesome class string, e.g. `fa-solid fa-car`.
