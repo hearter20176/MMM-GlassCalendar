@@ -1,7 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const Module = require("module");
-const path = require("path");
+const path = require("node:path");
 
 // node_helper.js does `require("node_helper")`, which only resolves inside a
 // real MagicMirror install. Redirect that one bare specifier to a minimal

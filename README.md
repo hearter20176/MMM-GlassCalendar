@@ -32,6 +32,16 @@ npm install
 
 Ensure the `lib/` assets above are present and `npm install` has fetched `@fortawesome/fontawesome-free`.
 
+## Update
+
+```bash
+cd ~/MagicMirror/modules/MMM-GlassCalendar
+git pull
+npm install --omit=dev
+```
+
+Then restart MagicMirror (for example `pm2 restart MagicMirror`).
+
 ## Configuration
 In `config/config.js`:
 ```js
@@ -93,7 +103,7 @@ In `config/config.js`:
     animationSpeed: 400,
     marqueeSpeed: 20               // px/s scroll speed for event titles too long to fit
   }
-}
+},
 ```
 
 ### Options

@@ -1189,7 +1189,7 @@ Module.register("MMM-GlassCalendar", {
 
     const { r, g, b } = parsed;
     const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-    const { h, s, l } = this.rgbToHsl(r, g, b);
+    const { h, s } = this.rgbToHsl(r, g, b);
 
     const targetL = luminance > 0.55 ? 0.25 : 0.82;
     const clampedS = Math.min(0.9, Math.max(0.35, s));

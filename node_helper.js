@@ -12,9 +12,9 @@ const maskUrl = (text) => String(text || "")
   .replace(/([?&](?:token|key|apikey)=)[^&\s]+/gi, "$1<masked>");
 const errText = (err) => maskUrl(err && err.message ? err.message : String(err));
 
-const fs = require("fs");
-const path = require("path");
-const crypto = require("crypto");
+const fs = require("node:fs");
+const path = require("node:path");
+const crypto = require("node:crypto");
 
 const CACHE_DIR = path.join(__dirname, "cache");
 const CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
