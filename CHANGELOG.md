@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ESLint (flat config) with an `npm run lint` script.
 - Added CHANGELOG, CODE_OF_CONDUCT and a Dependabot configuration.
 
+### Changed
+
+- Uses MagicMirror's shared `moment.js` instead of loading its own copy, which replaced the global moment and removed the timezone support MMM-GlassClock relies on. `moment` is now only a dev dependency (for tests).
+
 ## [4.1.0]
 
 Released before this changelog was started. Commit history, newest first:

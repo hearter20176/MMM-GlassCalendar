@@ -83,8 +83,9 @@ Module.register("MMM-GlassCalendar", {
   // ---------------------------------------------------------------------------
   getScripts() {
     return [
-      // Ensure moment is loaded even if MM core doesn't expose it globally early
-      this.file("node_modules/moment/min/moment-with-locales.min.js"),
+      // MagicMirror's shared moment (with locales). A module-local copy would
+      // replace the global and strip the moment-timezone MMM-GlassClock relies on.
+      "moment.js",
       // Iconify runtime (served locally from node_modules)
       this.file("node_modules/iconify-icon/dist/iconify-icon.min.js")
     ];
